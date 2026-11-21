@@ -16,6 +16,7 @@ const DATA_DIRECTORY = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : path.join(ROOT, "data");
 const DATA_FILE = path.join(DATA_DIRECTORY, "players.json");
+const DATABASE_URL = process.env.DATABASE_URL ?? "";
 const MAX_BODY_BYTES = 1024 * 1024;
 const TRAINING_COOLDOWN_MS = 60 * 60 * 1000;
 const MISSION_COOLDOWN_MS = 3 * 60 * 60 * 1000;
@@ -250,7 +251,7 @@ function serializeWrite(operation) {
   return result;
 }
 
-export const store = {
+const localStore = {
   async getPlayer(id) {
     await writeQueue;
     const database = await readDatabase();
@@ -280,6 +281,87 @@ export const store = {
     });
   }
 };
+
+function createPostgresStore() {
+  let pool;
+  let initialization;
+
+  async function initialize() {
+    if (!initialization) {
+      initialization = (async () => {
+        const { Pool } = await import("pg");
+        pool = new Pool({
+          connectionString: DATABASE_URL,
+          max: 5,
+          idleTimeoutMillis: 30000,
+          connectionTimeoutMillis: 10000
+        });
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_players (
+            id TEXT PRIMARY KEY,
+            data JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_processed_messages (
+            message_id TEXT PRIMARY KEY,
+            processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+      })().catch((error) => {
+        initialization = null;
+        throw error;
+      });
+    }
+    return initialization;
+  }
+
+  return {
+    initialize,
+    async getPlayer(id) {
+      await initialize();
+      const result = await pool.query(
+        "SELECT data FROM shinobi_players WHERE id = $1",
+        [id]
+      );
+      return result.rows[0]?.data ?? null;
+    },
+    async savePlayer(player) {
+      await initialize();
+      await pool.query(
+        `INSERT INTO shinobi_players (id, data, updated_at)
+         VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (id) DO UPDATE
+         SET data = EXCLUDED.data, updated_at = NOW()`,
+        [player.id, JSON.stringify(player)]
+      );
+      return player;
+    },
+    async getAllPlayers() {
+      await initialize();
+      const result = await pool.query("SELECT data FROM shinobi_players");
+      return result.rows.map((row) => row.data);
+    },
+    async claimMessage(messageId) {
+      await initialize();
+      const result = await pool.query(
+        `INSERT INTO shinobi_processed_messages (message_id)
+         VALUES ($1)
+         ON CONFLICT (message_id) DO NOTHING
+         RETURNING message_id`,
+        [messageId]
+      );
+      return result.rowCount === 1;
+    },
+    async close() {
+      if (pool) await pool.end();
+    }
+  };
+}
+
+// Em produção, use DATABASE_URL para que reinicializações não apaguem os personagens.
+export const store = DATABASE_URL ? createPostgresStore() : localStore;
 
 function safeEqual(left, right) {
   const a = Buffer.from(String(left));
@@ -360,7 +442,12 @@ function readRequestBody(request) {
   });
 }
 
-export function startServer() {
+export async function startServer() {
+  if (process.env.NODE_ENV === "production" && !DATABASE_URL) {
+    throw new Error("DATABASE_URL é obrigatório em produção para proteger o progresso dos jogadores.");
+  }
+  if (typeof store.initialize === "function") await store.initialize();
+
   const server = http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
@@ -407,12 +494,21 @@ export function startServer() {
     console.log(`Webhook: ${WEBHOOK_PATH}`);
   });
 
-  const shutdown = () => server.close(() => process.exit(0));
+  const shutdown = () => server.close(async () => {
+    try {
+      if (typeof store.close === "function") await store.close();
+    } finally {
+      process.exit(0);
+    }
+  });
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
   return server;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  startServer();
+  startServer().catch((error) => {
+    console.error("Não foi possível iniciar o Shinobi no Michi:", error.message);
+    process.exitCode = 1;
+  });
 }
