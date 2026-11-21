@@ -1,0 +1,14 @@
+{
+  "name": "shinobi-no-michi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bot de RPG para WhatsApp usando a API oficial WhatsApp Cloud da Meta.",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  }
+}

@@ -1,0 +1,418 @@
+import http from "node:http";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
+const WEBHOOK_PATH = process.env.WEBHOOK_PATH ?? "/webhooks/whatsapp";
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? "";
+const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN ?? "";
+const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
+const APP_SECRET = process.env.META_APP_SECRET ?? "";
+const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION ?? "v27.0";
+const DATA_DIRECTORY = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(ROOT, "data");
+const DATA_FILE = path.join(DATA_DIRECTORY, "players.json");
+const MAX_BODY_BYTES = 1024 * 1024;
+const TRAINING_COOLDOWN_MS = 60 * 60 * 1000;
+const MISSION_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error("PORT precisa ser um número entre 1 e 65535.");
+}
+if (!WEBHOOK_PATH.startsWith("/")) {
+  throw new Error("WEBHOOK_PATH precisa começar com /.");
+}
+
+export const missions = [
+  { id: 1, name: "Entrega na área comercial", description: "Leve um pacote importante até a área comercial da vila.", xp: 40, ryos: 30 },
+  { id: 2, name: "Ajuda na biblioteca", description: "Organize pergaminhos e ajude os moradores na biblioteca.", xp: 55, ryos: 40 },
+  { id: 3, name: "Coleta de ervas", description: "Encontre ervas medicinais para a equipe da academia.", xp: 70, ryos: 50 }
+];
+
+export function normalizeText(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .trim();
+}
+
+export function rankForLevel(level) {
+  if (level >= 10) return "Jounin";
+  if (level >= 5) return "Chuunin";
+  if (level >= 2) return "Genin";
+  return "Estudante";
+}
+
+export function createPlayer(id, name, now = new Date()) {
+  return {
+    id,
+    name,
+    village: "Konohagakure",
+    clan: "Sem clã",
+    rank: "Estudante",
+    level: 1,
+    xp: 0,
+    ryos: 100,
+    chakra: 100,
+    maxChakra: 100,
+    missionsCompleted: 0,
+    lastTrainingAt: null,
+    lastMissionAt: null,
+    createdAt: new Date(now).toISOString()
+  };
+}
+
+export function addExperience(player, amount) {
+  if (!Number.isFinite(amount) || amount < 0) throw new Error("Quantidade de XP inválida.");
+  player.xp += amount;
+  let levelsGained = 0;
+  while (player.xp >= player.level * 100) {
+    player.xp -= player.level * 100;
+    player.level += 1;
+    levelsGained += 1;
+  }
+  player.rank = rankForLevel(player.level);
+  return levelsGained;
+}
+
+function remainingTime(lastAction, cooldown, now) {
+  if (!lastAction) return 0;
+  const elapsed = now - new Date(lastAction).getTime();
+  return Math.max(0, cooldown - elapsed);
+}
+
+function formatRemaining(milliseconds) {
+  const totalMinutes = Math.ceil(milliseconds / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}min`;
+  if (hours > 0) return `${hours}h`;
+  return `${minutes}min`;
+}
+
+function helpMessage() {
+  return [
+    "*SHINOBI NO MICHI — MENU*",
+    "",
+    "• !registrar Nome — criar personagem",
+    "• !ficha — ver seus dados",
+    "• !treinar — ganhar experiência e Ryos",
+    "• !missoes — ver missões disponíveis",
+    "• !missao 1 — realizar uma missão",
+    "• !ranking — ver os shinobi em destaque",
+    "• !ajuda — mostrar este menu",
+    "",
+    "Comece com: !registrar Naruto"
+  ].join("\n");
+}
+
+export async function handleCommand({ from, text, repository, now = Date.now() }) {
+  if (!repository) throw new Error("O armazenamento de jogadores não foi configurado.");
+  const raw = String(text ?? "").trim();
+  if (!raw.startsWith("!")) return "Olá! Para ver os comandos do RPG, envie !ajuda.";
+
+  const parts = raw.slice(1).trim().split(/\s+/);
+  const command = normalizeText(parts.shift());
+  const argument = parts.join(" ").trim();
+
+  if (["ajuda", "help", "menu"].includes(command)) return helpMessage();
+
+  if (command === "registrar") {
+    const name = argument.replace(/\s+/g, " ");
+    const validName = /^[\p{L}\p{M}]+(?:[ '-][\p{L}\p{M}]+)*$/u.test(name);
+    if (name.length < 2 || name.length > 20 || !validName) {
+      return "Escolha um nome de 2 a 20 letras. Exemplo: !registrar Naruto Uzumaki";
+    }
+    const existing = await repository.getPlayer(from);
+    if (existing) return `Você já tem um personagem, *${existing.name}*. Envie !ficha para consultar sua ficha.`;
+    const player = createPlayer(from, name, now);
+    await repository.savePlayer(player);
+    return [
+      `Bem-vindo ao mundo shinobi, *${player.name}*!`,
+      "",
+      "Sua jornada começa em *Konohagakure*.",
+      "Patente: Estudante",
+      "Nível: 1 | XP: 0/100",
+      "Ryos: 100",
+      "",
+      "Envie !ajuda para conhecer os comandos."
+    ].join("\n");
+  }
+
+  if (command === "ficha") {
+    const player = await repository.getPlayer(from);
+    if (!player) return "Você ainda não tem personagem. Crie um com !registrar SeuNome.";
+    return [
+      `*FICHA DE ${player.name.toLocaleUpperCase("pt-BR")}*`,
+      `Vila: ${player.village}`,
+      `Clã: ${player.clan}`,
+      `Patente: ${player.rank}`,
+      `Nível: ${player.level}`,
+      `Experiência: ${player.xp}/${player.level * 100} XP`,
+      `Chakra: ${player.chakra}/${player.maxChakra}`,
+      `Ryos: ${player.ryos}`,
+      `Missões concluídas: ${player.missionsCompleted}`
+    ].join("\n");
+  }
+
+  if (command === "treinar") {
+    const player = await repository.getPlayer(from);
+    if (!player) return "Você precisa criar seu personagem primeiro: !registrar SeuNome.";
+    const wait = remainingTime(player.lastTrainingAt, TRAINING_COOLDOWN_MS, now);
+    if (wait > 0) return `Você já treinou recentemente. Tente novamente em ${formatRemaining(wait)}.`;
+    player.lastTrainingAt = new Date(now).toISOString();
+    player.ryos += 10;
+    const gainedLevels = addExperience(player, 25);
+    await repository.savePlayer(player);
+    const levelMessage = gainedLevels > 0 ? `\nVocê avançou para o nível *${player.level}* e agora é *${player.rank}*!` : "";
+    return `Treino concluído! Você ganhou *25 XP* e *10 Ryos*.${levelMessage}\nEnvie !ficha para ver sua evolução.`;
+  }
+
+  if (command === "missoes") {
+    return [
+      "*QUADRO DE MISSÕES*",
+      ...missions.map((mission) => `${mission.id}. *${mission.name}* — ${mission.xp} XP e ${mission.ryos} Ryos`),
+      "",
+      "Para realizar uma, envie !missao número. Exemplo: !missao 1",
+      "Você pode concluir uma missão a cada 3 horas."
+    ].join("\n");
+  }
+
+  if (command === "missao") {
+    const player = await repository.getPlayer(from);
+    if (!player) return "Você precisa criar seu personagem primeiro: !registrar SeuNome.";
+    if (!/^\d+$/.test(argument)) return "Informe o número da missão. Envie !missoes para ver o quadro.";
+    const mission = missions.find((item) => item.id === Number(argument));
+    if (!mission) return "Missão não encontrada. Envie !missoes para consultar o quadro.";
+    const wait = remainingTime(player.lastMissionAt, MISSION_COOLDOWN_MS, now);
+    if (wait > 0) return `Você já concluiu uma missão recentemente. Volte em ${formatRemaining(wait)}.`;
+    player.lastMissionAt = new Date(now).toISOString();
+    player.missionsCompleted += 1;
+    player.ryos += mission.ryos;
+    const gainedLevels = addExperience(player, mission.xp);
+    await repository.savePlayer(player);
+    const levelMessage = gainedLevels > 0 ? `\nVocê avançou para o nível *${player.level}* e agora é *${player.rank}*!` : "";
+    return [
+      `*MISSÃO CONCLUÍDA: ${mission.name}*`,
+      mission.description,
+      `Recompensa: *${mission.xp} XP* e *${mission.ryos} Ryos*.`,
+      `Missões concluídas: ${player.missionsCompleted}.${levelMessage}`
+    ].join("\n");
+  }
+
+  if (["ranking", "rank"].includes(command)) {
+    const players = await repository.getAllPlayers();
+    if (players.length === 0) return "Ainda não há shinobi registrados. Seja o primeiro com !registrar SeuNome.";
+    const topPlayers = players
+      .sort((a, b) => (b.level * 1000 + b.xp) - (a.level * 1000 + a.xp))
+      .slice(0, 5);
+    return [
+      "*RANKING SHINOBI*",
+      ...topPlayers.map((player, index) => `${index + 1}. *${player.name}* — Nv. ${player.level} (${player.rank})`)
+    ].join("\n");
+  }
+
+  return "Não reconheci esse comando. Envie !ajuda para ver a lista.";
+}
+
+let writeQueue = Promise.resolve();
+
+async function readDatabase() {
+  try {
+    const content = await fs.readFile(DATA_FILE, "utf8");
+    const database = JSON.parse(content);
+    if (!database || typeof database !== "object" || !database.players || typeof database.players !== "object") {
+      throw new Error("O arquivo de dados está em um formato inválido.");
+    }
+    if (!Array.isArray(database.processedMessageIds)) database.processedMessageIds = [];
+    return database;
+  } catch (error) {
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [] };
+    throw error;
+  }
+}
+
+async function writeDatabase(database) {
+  await fs.mkdir(DATA_DIRECTORY, { recursive: true });
+  const temporaryFile = `${DATA_FILE}.${process.pid}.tmp`;
+  await fs.writeFile(temporaryFile, JSON.stringify(database, null, 2), "utf8");
+  await fs.rename(temporaryFile, DATA_FILE);
+}
+
+function serializeWrite(operation) {
+  const result = writeQueue.then(operation);
+  writeQueue = result.catch(() => {});
+  return result;
+}
+
+export const store = {
+  async getPlayer(id) {
+    await writeQueue;
+    const database = await readDatabase();
+    return database.players[id] ?? null;
+  },
+  async savePlayer(player) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      database.players[player.id] = player;
+      await writeDatabase(database);
+      return player;
+    });
+  },
+  async getAllPlayers() {
+    await writeQueue;
+    const database = await readDatabase();
+    return Object.values(database.players);
+  },
+  async claimMessage(messageId) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      if (database.processedMessageIds.includes(messageId)) return false;
+      database.processedMessageIds.push(messageId);
+      if (database.processedMessageIds.length > 5000) database.processedMessageIds.splice(0, database.processedMessageIds.length - 5000);
+      await writeDatabase(database);
+      return true;
+    });
+  }
+};
+
+function safeEqual(left, right) {
+  const a = Buffer.from(String(left));
+  const b = Buffer.from(String(right));
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function isValidSignature(rawBody, signature) {
+  if (!APP_SECRET || typeof signature !== "string" || !signature.startsWith("sha256=")) return false;
+  const received = Buffer.from(signature.slice(7), "hex");
+  const expected = createHmac("sha256", APP_SECRET).update(rawBody).digest();
+  return received.length === expected.length && timingSafeEqual(received, expected);
+}
+
+async function sendTextMessage(to, body) {
+  if (!ACCESS_TOKEN || !PHONE_NUMBER_ID) {
+    throw new Error("Configure WHATSAPP_ACCESS_TOKEN e WHATSAPP_PHONE_NUMBER_ID nas variáveis do serviço.");
+  }
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${PHONE_NUMBER_ID}/messages`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${ACCESS_TOKEN}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "text",
+      text: { preview_url: false, body }
+    })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`A API do WhatsApp recusou o envio: ${result.error?.message ?? `HTTP ${response.status}`}`);
+  }
+  return result;
+}
+
+async function processWebhook(payload) {
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      for (const message of change.value?.messages ?? []) {
+        if (message.type !== "text" || !message.id || !message.from) continue;
+        const firstDelivery = await store.claimMessage(message.id);
+        if (!firstDelivery) continue;
+        const reply = await handleCommand({ from: message.from, text: message.text?.body ?? "", repository: store });
+        if (reply) await sendTextMessage(message.from, reply);
+      }
+    }
+  }
+}
+
+function send(response, statusCode, body, contentType = "text/plain; charset=utf-8") {
+  response.writeHead(statusCode, {
+    "Content-Type": contentType,
+    "Cache-Control": "no-store"
+  });
+  response.end(body);
+}
+
+function readRequestBody(request) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    request.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error("O corpo da requisição excedeu o limite permitido."));
+        request.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    request.on("end", () => resolve(Buffer.concat(chunks)));
+    request.on("error", reject);
+  });
+}
+
+export function startServer() {
+  const server = http.createServer(async (request, response) => {
+    const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+
+    if (request.method === "GET" && requestUrl.pathname === "/health") {
+      return send(response, 200, JSON.stringify({ ok: true, name: "Shinobi no Michi" }), "application/json; charset=utf-8");
+    }
+
+    if (requestUrl.pathname !== WEBHOOK_PATH) return send(response, 404, "Rota não encontrada.");
+
+    if (request.method === "GET") {
+      const mode = requestUrl.searchParams.get("hub.mode");
+      const token = requestUrl.searchParams.get("hub.verify_token");
+      const challenge = requestUrl.searchParams.get("hub.challenge");
+      if (!VERIFY_TOKEN) return send(response, 503, "Configure WHATSAPP_VERIFY_TOKEN.");
+      if (mode === "subscribe" && challenge && safeEqual(token ?? "", VERIFY_TOKEN)) return send(response, 200, challenge);
+      return send(response, 403, "Verificação do webhook recusada.");
+    }
+
+    if (request.method !== "POST") {
+      response.setHeader("Allow", "GET, POST");
+      return send(response, 405, "Método não permitido.");
+    }
+
+    try {
+      if (process.env.NODE_ENV === "production" && !APP_SECRET) {
+        return send(response, 503, "Configure META_APP_SECRET antes de receber eventos em produção.");
+      }
+      const rawBody = await readRequestBody(request);
+      if (APP_SECRET && !isValidSignature(rawBody, request.headers["x-hub-signature-256"])) {
+        return send(response, 401, "Assinatura do webhook inválida.");
+      }
+      const payload = JSON.parse(rawBody.toString("utf8"));
+      if (payload.object !== "whatsapp_business_account") return send(response, 404, "Evento ignorado.");
+      await processWebhook(payload);
+      return send(response, 200, "EVENT_RECEIVED");
+    } catch (error) {
+      console.error("Falha ao processar webhook:", error.message);
+      return send(response, 500, "Erro ao processar evento.");
+    }
+  });
+
+  server.listen(PORT, "0.0.0.0", () => {
+    console.log(`Shinobi no Michi ativo na porta ${PORT}.`);
+    console.log(`Webhook: ${WEBHOOK_PATH}`);
+  });
+
+  const shutdown = () => server.close(() => process.exit(0));
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
+  return server;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  startServer();
+}
