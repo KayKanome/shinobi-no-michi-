@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Bot de RPG para WhatsApp usando a API oficial WhatsApp Cloud da Meta.",
+  "description": "Bot de RPG para WhatsApp e Discord.",
   "engines": {
     "node": ">=20.6"
   },
@@ -12,6 +12,7 @@
     "test": "node --test"
   },
   "dependencies": {
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "discord.js": "^14.28.1"
   }
 }
