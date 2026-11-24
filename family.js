@@ -33,7 +33,7 @@ export async function handleFamilyCommand(interaction, repository) {
     const parents = family.parents.map(item => `• ${item.name}`).join("\n") || "• Nenhum responsável registrado";
     const children = family.children.map(item => `• ${item.name}`).join("\n") || "• Nenhum filho ou filha registrado";
     const requests = pending.length
-      ? pending.map(item => `• ${item.parentName} — aceite com /aceitar_adocao responsavel:@${item.parentDiscordId} ou recuse com /recusar_adocao responsavel:@${item.parentDiscordId}`).join("\n")
+      ? pending.map(item => `• ${item.parentName} — <@${item.parentDiscordId}>`).join("\n")
       : "• Nenhum pedido pendente";
     return interaction.editReply([
       `🌳 **Família de ${player.name}**`,
@@ -63,7 +63,7 @@ export async function handleFamilyCommand(interaction, repository) {
     const result = await repository.createAdoptionRequest(actorId, `discord:${target.id}`);
     if (result === "duplicate") return interaction.reply({ content: "Já existe um pedido ou vínculo de adoção entre vocês.", ephemeral: true });
     await interaction.reply({ content: `🌸 Pedido de adoção enviado para ${target}. A adoção só será registrada se essa pessoa aceitar.`, ephemeral: true });
-    await interaction.user.send(`🌸 Você enviou um pedido de adoção para ${target.username}. A pessoa pode aceitar com /aceitar_adocao responsavel:@${interaction.user.username}.`).catch(() => {});
+    await target.send(`🌸 ${interaction.user.username} enviou um pedido para ser seu responsável no Shinobi no Michi. Se quiser aceitar, use /aceitar_adocao e selecione essa pessoa no campo responsável. Para recusar, use /recusar_adocao.`).catch(() => {});
     return;
   }
 
