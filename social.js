@@ -54,11 +54,6 @@ export const SOCIAL_ACTIONS = {
     verb: "ficou triste perto de",
     gifs: ["https://media.giphy.com/media/ROF8OQvDmxytW/giphy.gif"]
   },
-  facepalm: {
-    label: "Palm face",
-    verb: "fez um palm face para",
-    gifs: ["https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif"]
-  },
   attack: {
     label: "Atacar",
     verb: "atacou",
@@ -78,7 +73,6 @@ const SOCIAL_COMMANDS = {
   feliz: "happy",
   raiva: "angry",
   tristeza: "sad",
-  palmface: "facepalm",
   atacar: "attack"
 };
 
@@ -133,7 +127,7 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const embed = new EmbedBuilder()
       .setColor(0xE89BB5)
       .setTitle("🤗 Interações")
-      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará somente a ação e o GIF.\n\nAtalhos: /abracar, /carinho, /cumprimentar, /dancar, /feliz, /raiva, /tristeza, /palmface e /atacar.");
+      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará somente a ação e o GIF.\n\nAtalhos: /abracar, /carinho, /cumprimentar, /dancar, /feliz, /raiva, /tristeza e /atacar.");
     const actionsOne = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
@@ -144,7 +138,6 @@ function categoryPanel(category, ownerId, avatarUrl) {
       new ButtonBuilder().setCustomId("social:act:happy:" + ownerId).setLabel("Feliz").setEmoji("😊").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId("social:act:angry:" + ownerId).setLabel("Raiva").setEmoji("😠").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("social:act:sad:" + ownerId).setLabel("Tristeza").setEmoji("😢").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("social:act:facepalm:" + ownerId).setLabel("Palm face").setEmoji("🤦").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Atacar").setEmoji("✨").setStyle(ButtonStyle.Danger)
     );
     return { embeds: [embed], components: [actionsOne, actionsTwo, back] };
