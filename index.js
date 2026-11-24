@@ -301,6 +301,22 @@ function createPostgresStore() {
             processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_family_adoptions (
+            id BIGSERIAL PRIMARY KEY,
+            parent_id TEXT NOT NULL,
+            child_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            responded_at TIMESTAMPTZ,
+            CHECK (parent_id <> child_id)
+          )
+        `);
+        await pool.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS shinobi_family_active_pair
+          ON shinobi_family_adoptions (parent_id, child_id)
+          WHERE status IN ('pending', 'accepted')
+        `);
       })().catch((error) => {
         initialization = null;
         throw error;
@@ -346,6 +362,111 @@ function createPostgresStore() {
       );
       return result.rowCount === 1;
     },
+    async createAdoptionRequest(parentId, childId) {
+      await initialize();
+      const result = await pool.query(
+        `INSERT INTO shinobi_family_adoptions (parent_id, child_id, status)
+         VALUES ($1, $2, 'pending')
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [parentId, childId]
+      );
+      return result.rowCount === 1 ? "created" : "duplicate";
+    },
+    async getFamily(userId) {
+      await initialize();
+      const [parents, children] = await Promise.all([
+        pool.query(
+          `SELECT p.data->>'name' AS name
+           FROM shinobi_family_adoptions a
+           JOIN shinobi_players p ON p.id = a.parent_id
+           WHERE a.child_id = $1 AND a.status = 'accepted'
+           ORDER BY a.responded_at`,
+          [userId]
+        ),
+        pool.query(
+          `SELECT p.data->>'name' AS name
+           FROM shinobi_family_adoptions a
+           JOIN shinobi_players p ON p.id = a.child_id
+           WHERE a.parent_id = $1 AND a.status = 'accepted'
+           ORDER BY a.responded_at`,
+          [userId]
+        )
+      ]);
+      return { parents: parents.rows, children: children.rows };
+    },
+    async getPendingAdoptions(childId) {
+      await initialize();
+      const result = await pool.query(
+        `SELECT a.parent_id AS "parentId", p.data->>'name' AS "parentName"
+         FROM shinobi_family_adoptions a
+         JOIN shinobi_players p ON p.id = a.parent_id
+         WHERE a.child_id = $1 AND a.status = 'pending'
+         ORDER BY a.created_at`,
+        [childId]
+      );
+      return result.rows.map(row => ({
+        ...row,
+        parentDiscordId: String(row.parentId).replace(/^discord:/, "")
+      }));
+    },
+    async declineAdoptionRequest(parentId, childId) {
+      await initialize();
+      const result = await pool.query(
+        `UPDATE shinobi_family_adoptions
+         SET status = 'declined', responded_at = NOW()
+         WHERE parent_id = $1 AND child_id = $2 AND status = 'pending'`,
+        [parentId, childId]
+      );
+      return result.rowCount === 1;
+    },
+    async acceptAdoptionRequest(parentId, childId) {
+      await initialize();
+      const connection = await pool.connect();
+      try {
+        await connection.query("BEGIN");
+        const request = await connection.query(
+          `SELECT id FROM shinobi_family_adoptions
+           WHERE parent_id = $1 AND child_id = $2 AND status = 'pending'
+           FOR UPDATE`,
+          [parentId, childId]
+        );
+        if (request.rowCount !== 1) {
+          await connection.query("ROLLBACK");
+          return "missing";
+        }
+        const cycle = await connection.query(
+          `WITH RECURSIVE descendants(id) AS (
+             SELECT child_id FROM shinobi_family_adoptions
+             WHERE parent_id = $1 AND status = 'accepted'
+             UNION
+             SELECT a.child_id FROM shinobi_family_adoptions a
+             JOIN descendants d ON a.parent_id = d.id
+             WHERE a.status = 'accepted'
+           )
+           SELECT 1 FROM descendants WHERE id = $2 LIMIT 1`,
+          [childId, parentId]
+        );
+        if (cycle.rowCount > 0) {
+          await connection.query("ROLLBACK");
+          return "cycle";
+        }
+        await connection.query(
+          `UPDATE shinobi_family_adoptions
+           SET status = 'accepted', responded_at = NOW()
+           WHERE id = $1`,
+          [request.rows[0].id]
+        );
+        await connection.query("COMMIT");
+        return "accepted";
+      } catch (error) {
+        await connection.query("ROLLBACK").catch(() => {});
+        if (error.code === "23505") return "exists";
+        throw error;
+      } finally {
+        connection.release();
+      }
+    },
     async close() {
       if (pool) await pool.end();
     }
@@ -369,7 +490,7 @@ export async function startDiscordBot() {
       GatewayIntentBits.MessageContent
     ]
   });
-  await setupSocialInteractions(client);
+  await setupSocialInteractions(client, store);
 
   client.once("ready", () => {
     console.log(`Momoka conectada ao Discord como ${client.user.tag}.`);
