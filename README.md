@@ -1,10 +1,10 @@
 # Shinobi no Michi
 
-Primeira versão jogável de um RPG para WhatsApp, em português, feita com Node.js e a **API oficial WhatsApp Cloud da Meta**.
+RPG comunitário em português, feito com Node.js, PostgreSQL e suporte a WhatsApp Cloud (webhook) e Discord (Gateway). A Momoka pode responder a comandos `!` em canais de texto de servidores Discord.
 
 ## O que já funciona
 
-- Cadastro de personagem por número de WhatsApp;
+- Cadastro de personagem por identificador da plataforma (WhatsApp ou Discord);
 - Ficha com vila, clã, patente, nível, XP, chakra, Ryos e missões concluídas;
 - Treino que concede XP e Ryos, com intervalo de 1 hora;
 - Três missões iniciais, com intervalo de 3 horas entre conclusões;
@@ -12,7 +12,7 @@ Primeira versão jogável de um RPG para WhatsApp, em português, feita com Node
 - Armazenamento local em JSON para testes;
 - Armazenamento PostgreSQL externo para hospedagem, usando `DATABASE_URL`;
 - Webhook com verificação da Meta e validação de assinatura em produção;
-- Proteção básica contra reprocessamento de mensagens repetidas da Meta.
+- Proteção básica contra reprocessamento de mensagens repetidas da Meta e do Discord.\n- Integração com Discord usando Gateway e `discord.js` (não exige URL de endpoint de interações).
 
 ## Comandos do jogo
 
@@ -39,6 +39,19 @@ Requisitos: Node.js 20.6 ou superior.
 O projeto usa o driver `pg` somente quando `DATABASE_URL` estiver configurado.
 
 Sem `DATABASE_URL`, o modo local salva os dados em `data/players.json`. Em produção, o servidor exige `DATABASE_URL` para evitar perda silenciosa de personagens.
+
+## Conectar ao Discord
+
+1. No Discord Developer Portal, abra a aplicação Momoka e confirme que o bot está adicionado ao seu servidor.
+2. Em **Bot**, ative **Message Content Intent**. Não é necessário ativar Presence Intent nem Server Members Intent para os comandos atuais.
+3. No OAuth2 / Installation, conceda ao bot apenas as permissões necessárias: View Channels, Send Messages, Read Message History e Embed Links. Não conceda Administrator.
+4. No Render, adicione a variável secreta `DISCORD_BOT_TOKEN` com o token do bot. Nunca coloque esse token no GitHub nem o envie em mensagens.
+5. Publique a branch `discord-integration` como uma alteração separada, depois de revisar e testar. O serviço inicia a conexão Discord automaticamente quando a variável existe.
+6. Em um canal de texto do servidor, teste `!ajuda` e `!registrar Naruto`.
+
+A Momoka responde somente em canais de servidor (não em mensagens privadas) e ignora mensagens de outros bots. Os comandos atuais usam prefixo `!`. O ID de jogador do Discord é armazenado com o prefixo `discord:`, para não colidir com IDs de telefone já existentes no banco. Assim, personagens existentes do WhatsApp não são sobrescritos; contas de plataformas diferentes ainda são fichas separadas.
+
+O bot precisa das permissões **View Channel**, **Send Messages** e **Read Message History** nos canais em que será usado. O intent **Message Content** deve estar habilitado no Developer Portal e no código.
 
 ## Conectar ao WhatsApp
 
