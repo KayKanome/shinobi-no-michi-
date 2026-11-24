@@ -33,7 +33,23 @@ export const SOCIAL_ACTIONS = {
       "https://media.giphy.com/media/FraE0FGfEc091zpkNZ/giphy.gif",
       "https://media.giphy.com/media/ktLSY7TZFY3Rie2JZM/giphy.gif"
     ]
+  },
+  attack: {
+    label: "Atacar (poder de anime)",
+    verb: "lançou um poder de anime na direção de",
+    gifs: [
+      "https://media.giphy.com/media/Yl3oC8pHe9HkoqMa4R/giphy.gif",
+      "https://media.giphy.com/media/MaTKHJTWlEHe0sDsML/giphy.gif",
+      "https://media.giphy.com/media/VtBS7Vvb1YiteCGgZ8/giphy.gif"
+    ]
   }
+};
+
+const SOCIAL_COMMANDS = {
+  abracar: "hug",
+  carinho: "pat",
+  cumprimentar: "wave",
+  atacar: "attack"
 };
 
 export function formatSocialAction(actorName, targetName, action) {
@@ -58,7 +74,7 @@ function mainPanel(ownerId, avatarUrl) {
     .setTitle("🌸 Cantinho Social da Momoka")
     .setDescription(
       "Escolha uma categoria! Este painel é privado e só você pode controlá-lo.\n\n" +
-      "**🤗 Interações** — abrace, faça carinho e cumprimente.\n" +
+      "**🤗 Interações** — abrace, faça carinho, cumprimente ou use um poder de anime.\n" +
       "**💞 Relacionamentos** — em desenvolvimento.\n" +
       "**🌳 Família** — em desenvolvimento.\n" +
       "**🎭 Roleplay** — em desenvolvimento.\n" +
@@ -93,7 +109,8 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const actions = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Fazer carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("social:act:wave:" + ownerId).setLabel("Cumprimentar").setEmoji("👋").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId("social:act:wave:" + ownerId).setLabel("Cumprimentar").setEmoji("👋").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Atacar").setEmoji("✨").setStyle(ButtonStyle.Danger)
     );
     return { embeds: [embed], components: [actions, back] };
   }
@@ -129,10 +146,10 @@ async function publishAction(channel, actor, target, action) {
 export async function setupSocialInteractions(client) {
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
-    ...Object.entries(SOCIAL_ACTIONS).map(([name, config]) =>
+    ...Object.entries(SOCIAL_COMMANDS).map(([commandName, action]) =>
       new SlashCommandBuilder()
-        .setName(name)
-        .setDescription(config.label)
+        .setName(commandName)
+        .setDescription(SOCIAL_ACTIONS[action].label)
         .addUserOption(option => option.setName("jogador").setDescription("Escolha outra pessoa do servidor.").setRequired(true))
     )
   ];
@@ -154,7 +171,8 @@ export async function setupSocialInteractions(client) {
           return interaction.reply({ ...mainPanel(interaction.user.id, avatar), ephemeral: true });
         }
 
-        if (Object.hasOwn(SOCIAL_ACTIONS, interaction.commandName)) {
+        if (Object.hasOwn(SOCIAL_COMMANDS, interaction.commandName)) {
+          const action = SOCIAL_COMMANDS[interaction.commandName];
           const target = interaction.options.getUser("jogador");
           if (!target || target.id === interaction.user.id) {
             return interaction.reply({ content: "Escolha outra pessoa para essa interação. 💗", ephemeral: true });
@@ -163,7 +181,7 @@ export async function setupSocialInteractions(client) {
             return interaction.reply({ content: "Escolha uma pessoa, não outro bot. 🌸", ephemeral: true });
           }
           await interaction.deferReply({ ephemeral: true });
-          await publishAction(interaction.channel, interaction.user, target, interaction.commandName);
+          await publishAction(interaction.channel, interaction.user, target, action);
           return interaction.editReply({ content: "Interação enviada para " + target + "! 🌸" });
         }
       }
