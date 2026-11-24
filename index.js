@@ -1,18 +1,11 @@
 import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
-const WEBHOOK_PATH = process.env.WEBHOOK_PATH ?? "/webhooks/whatsapp";
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? "";
-const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN ?? "";
-const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
-const APP_SECRET = process.env.META_APP_SECRET ?? "";
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION ?? "v27.0";
 const DATA_DIRECTORY = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : path.join(ROOT, "data");
@@ -24,9 +17,6 @@ const MISSION_COOLDOWN_MS = 3 * 60 * 60 * 1000;
 
 if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
   throw new Error("PORT precisa ser um número entre 1 e 65535.");
-}
-if (!WEBHOOK_PATH.startsWith("/")) {
-  throw new Error("WEBHOOK_PATH precisa começar com /.");
 }
 
 export const missions = [
@@ -364,59 +354,6 @@ function createPostgresStore() {
 // Em produção, use DATABASE_URL para que reinicializações não apaguem os personagens.
 export const store = DATABASE_URL ? createPostgresStore() : localStore;
 
-function safeEqual(left, right) {
-  const a = Buffer.from(String(left));
-  const b = Buffer.from(String(right));
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function isValidSignature(rawBody, signature) {
-  if (!APP_SECRET || typeof signature !== "string" || !signature.startsWith("sha256=")) return false;
-  const received = Buffer.from(signature.slice(7), "hex");
-  const expected = createHmac("sha256", APP_SECRET).update(rawBody).digest();
-  return received.length === expected.length && timingSafeEqual(received, expected);
-}
-
-async function sendTextMessage(to, body) {
-  if (!ACCESS_TOKEN || !PHONE_NUMBER_ID) {
-    throw new Error("Configure WHATSAPP_ACCESS_TOKEN e WHATSAPP_PHONE_NUMBER_ID nas variáveis do serviço.");
-  }
-  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${PHONE_NUMBER_ID}/messages`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${ACCESS_TOKEN}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to,
-      type: "text",
-      text: { preview_url: false, body }
-    })
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(`A API do WhatsApp recusou o envio: ${result.error?.message ?? `HTTP ${response.status}`}`);
-  }
-  return result;
-}
-
-async function processWebhook(payload) {
-  for (const entry of payload.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      for (const message of change.value?.messages ?? []) {
-        if (message.type !== "text" || !message.id || !message.from) continue;
-        const firstDelivery = await store.claimMessage(message.id);
-        if (!firstDelivery) continue;
-        const reply = await handleCommand({ from: message.from, text: message.text?.body ?? "", repository: store });
-        if (reply) await sendTextMessage(message.from, reply);
-      }
-    }
-  }
-}
-
 async function startDiscordBot() {
   if (!DISCORD_BOT_TOKEN) {
     console.log("Discord desativado: configure DISCORD_BOT_TOKEN para conectar a Momoka.");
@@ -471,24 +408,6 @@ function send(response, statusCode, body, contentType = "text/plain; charset=utf
   response.end(body);
 }
 
-function readRequestBody(request) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-    request.on("data", (chunk) => {
-      size += chunk.length;
-      if (size > MAX_BODY_BYTES) {
-        reject(new Error("O corpo da requisição excedeu o limite permitido."));
-        request.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    request.on("end", () => resolve(Buffer.concat(chunks)));
-    request.on("error", reject);
-  });
-}
-
 export async function startServer() {
   if (process.env.NODE_ENV === "production" && !DATABASE_URL) {
     throw new Error("DATABASE_URL é obrigatório em produção para proteger o progresso dos jogadores.");
@@ -500,46 +419,19 @@ export async function startServer() {
     const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
 
     if (request.method === "GET" && requestUrl.pathname === "/health") {
-      return send(response, 200, JSON.stringify({ ok: true, name: "Shinobi no Michi" }), "application/json; charset=utf-8");
+      return send(response, 200, JSON.stringify({
+        ok: true,
+        name: "Shinobi no Michi",
+        platform: "discord"
+      }), "application/json; charset=utf-8");
     }
 
-    if (requestUrl.pathname !== WEBHOOK_PATH) return send(response, 404, "Rota não encontrada.");
-
-    if (request.method === "GET") {
-      const mode = requestUrl.searchParams.get("hub.mode");
-      const token = requestUrl.searchParams.get("hub.verify_token");
-      const challenge = requestUrl.searchParams.get("hub.challenge");
-      if (!VERIFY_TOKEN) return send(response, 503, "Configure WHATSAPP_VERIFY_TOKEN.");
-      if (mode === "subscribe" && challenge && safeEqual(token ?? "", VERIFY_TOKEN)) return send(response, 200, challenge);
-      return send(response, 403, "Verificação do webhook recusada.");
-    }
-
-    if (request.method !== "POST") {
-      response.setHeader("Allow", "GET, POST");
-      return send(response, 405, "Método não permitido.");
-    }
-
-    try {
-      if (process.env.NODE_ENV === "production" && !APP_SECRET) {
-        return send(response, 503, "Configure META_APP_SECRET antes de receber eventos em produção.");
-      }
-      const rawBody = await readRequestBody(request);
-      if (APP_SECRET && !isValidSignature(rawBody, request.headers["x-hub-signature-256"])) {
-        return send(response, 401, "Assinatura do webhook inválida.");
-      }
-      const payload = JSON.parse(rawBody.toString("utf8"));
-      if (payload.object !== "whatsapp_business_account") return send(response, 404, "Evento ignorado.");
-      await processWebhook(payload);
-      return send(response, 200, "EVENT_RECEIVED");
-    } catch (error) {
-      console.error("Falha ao processar webhook:", error.message);
-      return send(response, 500, "Erro ao processar evento.");
-    }
+    return send(response, 404, "Rota não encontrada.");
   });
 
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Shinobi no Michi ativo na porta ${PORT}.`);
-    console.log(`Webhook: ${WEBHOOK_PATH}`);
+    console.log("Integração ativa: Discord Gateway.");
   });
 
   const shutdown = () => server.close(async () => {
