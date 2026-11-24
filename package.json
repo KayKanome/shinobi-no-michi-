@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "start:worker": "node worker.js"
   },
   "dependencies": {
     "pg": "^8.16.3",
