@@ -14,6 +14,10 @@ RPG comunitário em português, desenvolvido com Node.js, PostgreSQL (Neon) e Di
 | Comando | O que faz |
 |---|---|
 | `!ajuda` | Mostra o menu |
+| `/social` | Abre o painel social privado |
+| `/hug jogador` | Abraça outro jogador com GIF |
+| `/pat jogador` | Faz carinho em outro jogador com GIF |
+| `/wave jogador` | Cumprimenta outro jogador com GIF |
 | `!registrar Naruto` | Cria um personagem |
 | `!ficha` | Mostra sua ficha |
 | `!treinar` | Treina e recebe XP/Ryos |
@@ -53,5 +57,13 @@ A rota `GET /health` retorna o estado básico do serviço. As demais rotas HTTP 
 ## Desenvolvimento
 
 O trabalho é feito primeiro na branch `discord-integration` e validado no serviço de testes `momoka-discord-test`. A branch `main` e o serviço antigo não devem ser alterados durante os testes.
+
+### Painel social
+
+- `/social` abre um painel efêmero, visível apenas para quem executou o comando.
+- Os botões de navegação verificam a identidade do dono do painel e incluem a opção Voltar.
+- A categoria Interações permite abraçar (`/hug`), fazer carinho (`/pat`) e cumprimentar (`/wave`) outros membros, pelo painel ou por comandos separados.
+- As interações são publicadas no canal com menção aos participantes e um GIF selecionado aleatoriamente.
+- As demais categorias aparecem no painel como áreas em desenvolvimento e serão implementadas em etapas posteriores.
 
 As próximas funcionalidades sociais serão desenvolvidas em etapas pequenas, com testes antes de cada publicação.
