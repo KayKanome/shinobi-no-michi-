@@ -61,7 +61,7 @@ export const SOCIAL_ACTIONS = {
   },
   attack: {
     label: "Atacar (poder de anime)",
-    verb: "lançou um poder de anime na direção de",
+    verb: "atacou",
     gifs: [
       "https://media.giphy.com/media/Yl3oC8pHe9HkoqMa4R/giphy.gif",
       "https://media.giphy.com/media/MaTKHJTWlEHe0sDsML/giphy.gif",
@@ -85,7 +85,7 @@ const SOCIAL_COMMANDS = {
 export function formatSocialAction(actorName, targetName, action) {
   const config = SOCIAL_ACTIONS[action];
   if (!config) throw new Error("Interação social desconhecida.");
-  return "**" + actorName + "** " + config.verb + " **" + targetName + "**!";
+  return actorName + " " + config.verb + " " + targetName;
 }
 
 export function isSocialPanelOwner(customId, userId) {
@@ -110,8 +110,7 @@ function mainPanel(ownerId, avatarUrl) {
       "**🎭 Roleplay** — em desenvolvimento.\n" +
       "**🎮 Jogos** — em desenvolvimento.\n" +
       "**🏮 Eventos** — em desenvolvimento."
-    )
-    ;
+    );
 
   const rowOne = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("social:cat:interacoes:" + ownerId).setLabel("Interações").setEmoji("🤗").setStyle(ButtonStyle.Primary),
