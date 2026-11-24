@@ -1,3 +1,5 @@
+import { familyCommands, handleFamilyCommand } from "./family.js";
+
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -100,7 +102,7 @@ function mainPanel(ownerId, avatarUrl) {
       "Escolha uma categoria! Este painel é privado e só você pode controlá-lo.\n\n" +
       "**🤗 Interações** — abraço, carinho, cumprimento, dança, felicidade e reações.\n" +
       "**💞 Relacionamentos** — em desenvolvimento.\n" +
-      "**🌳 Família** — em desenvolvimento.\n" +
+      "**🌳 Família** — adoção, responsáveis e árvore familiar.\n" +
       "**🎭 Roleplay** — em desenvolvimento.\n" +
       "**🎮 Jogos** — em desenvolvimento.\n" +
       "**🏮 Eventos** — em desenvolvimento."
@@ -143,9 +145,17 @@ function categoryPanel(category, ownerId, avatarUrl) {
     return { embeds: [embed], components: [actionsOne, actionsTwo, back] };
   }
 
+  if (category === "familia") {
+    const embed = new EmbedBuilder()
+      .setColor(0xE89BB5)
+      .setTitle("🌳 Família")
+      .setDescription("O sistema de família funciona por adoção. Não há limite de filhos e não é necessário estar casado para ser pai ou mãe.\n\n**/familia** — consultar sua família e pedidos recebidos.\n**/adotar jogador** — enviar um pedido de adoção.\n**/aceitar_adocao responsavel** — aceitar um pedido.\n**/recusar_adocao responsavel** — recusar um pedido.\n\nA adoção só é concluída com a aceitação da outra pessoa. O certificado da loja será conectado depois.");
+    return { embeds: [embed], components: [back] };
+  }
+
   const sections = {
     relacionamentos: ["💞 Relacionamentos", "O espaço de laços e compatibilidade será desenvolvido em uma próxima etapa."],
-    familia: ["🌳 Família", "A criação de famílias e a árvore genealógica chegarão em uma próxima etapa."],
+    familia: ["🌳 Família", "Consulte a área Família para ver os comandos de adoção."],
     roleplay: ["🎭 Roleplay", "As ferramentas de interpretação e personagens serão desenvolvidas em uma próxima etapa."],
     jogos: ["🎮 Jogos", "Os minijogos e atividades interativas serão desenvolvidos em uma próxima etapa."],
     eventos: ["🏮 Eventos", "Os eventos da comunidade serão desenvolvidos em uma próxima etapa."]
@@ -169,9 +179,10 @@ async function publishAction(channel, actor, target, action) {
   });
 }
 
-export async function setupSocialInteractions(client) {
+export async function setupSocialInteractions(client, repository) {
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
+    ...familyCommands(),
     ...Object.entries(SOCIAL_COMMANDS).map(([commandName, action]) =>
       new SlashCommandBuilder()
         .setName(commandName)
@@ -193,6 +204,9 @@ export async function setupSocialInteractions(client) {
     console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
+        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao"].includes(interaction.commandName)) {
+          return await handleFamilyCommand(interaction, repository);
+        }
         if (interaction.commandName === "social") {
           await interaction.deferReply({ ephemeral: true });
           const avatar = client.user.displayAvatarURL({ extension: "png", size: 256 });
