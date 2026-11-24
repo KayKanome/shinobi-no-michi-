@@ -2,6 +2,7 @@ import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { setupSocialInteractions } from "./social.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -368,6 +369,7 @@ async function startDiscordBot() {
       GatewayIntentBits.MessageContent
     ]
   });
+  await setupSocialInteractions(client);
 
   client.once("ready", () => {
     console.log(`Momoka conectada ao Discord como ${client.user.tag}.`);
