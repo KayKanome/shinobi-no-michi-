@@ -34,15 +34,15 @@ export const SOCIAL_ACTIONS = {
       "https://media.giphy.com/media/ktLSY7TZFY3Rie2JZM/giphy.gif"
     ]
   },
-  tease: {
-    label: "Provocar",
-    verb: "provocou",
-    gifs: ["https://media.giphy.com/media/OrHEJYbSzwz8QfRUl5/giphy.gif"]
-  },
   dance: {
     label: "Dançar",
     verb: "dançou para",
     gifs: ["https://media.giphy.com/media/kOhxnWg9jYBXG6uedj/giphy.gif"]
+  },
+  happy: {
+    label: "Feliz",
+    verb: "ficou feliz com",
+    gifs: ["https://media.giphy.com/media/MDJ9IbxxvDUQM/giphy.gif"]
   },
   angry: {
     label: "Expressar raiva",
@@ -60,7 +60,7 @@ export const SOCIAL_ACTIONS = {
     gifs: ["https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif"]
   },
   attack: {
-    label: "Atacar (poder de anime)",
+    label: "Atacar",
     verb: "atacou",
     gifs: [
       "https://media.giphy.com/media/Yl3oC8pHe9HkoqMa4R/giphy.gif",
@@ -74,8 +74,8 @@ const SOCIAL_COMMANDS = {
   abracar: "hug",
   carinho: "pat",
   cumprimentar: "wave",
-  provocar: "tease",
   dancar: "dance",
+  feliz: "happy",
   raiva: "angry",
   tristeza: "sad",
   palmface: "facepalm",
@@ -104,7 +104,7 @@ function mainPanel(ownerId, avatarUrl) {
     .setTitle("🌸 Cantinho Social da Momoka")
     .setDescription(
       "Escolha uma categoria! Este painel é privado e só você pode controlá-lo.\n\n" +
-      "**🤗 Interações** — abraço, carinho, cumprimento, provocação, dança e reações.\n" +
+      "**🤗 Interações** — abraço, carinho, cumprimento, dança, felicidade e reações.\n" +
       "**💞 Relacionamentos** — em desenvolvimento.\n" +
       "**🌳 Família** — em desenvolvimento.\n" +
       "**🎭 Roleplay** — em desenvolvimento.\n" +
@@ -139,14 +139,14 @@ function categoryPanel(category, ownerId, avatarUrl) {
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:wave:" + ownerId).setLabel("Cumprimentar").setEmoji("👋").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("social:act:tease:" + ownerId).setLabel("Provocar").setEmoji("😜").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:dance:" + ownerId).setLabel("Dançar").setEmoji("💃").setStyle(ButtonStyle.Primary)
     );
     const actionsTwo = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("social:act:happy:" + ownerId).setLabel("Feliz").setEmoji("😊").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId("social:act:angry:" + ownerId).setLabel("Raiva").setEmoji("😠").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("social:act:sad:" + ownerId).setLabel("Tristeza").setEmoji("😢").setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId("social:act:facepalm:" + ownerId).setLabel("Palm face").setEmoji("🤦").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Poder de anime").setEmoji("✨").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Atacar").setEmoji("✨").setStyle(ButtonStyle.Danger)
     );
     return { embeds: [embed], components: [actionsOne, actionsTwo, back] };
   }
