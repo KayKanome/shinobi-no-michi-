@@ -32,6 +32,9 @@ export async function handleFamilyCommand(interaction, repository) {
     const pending = await repository.getPendingAdoptions(actorId);
     const parents = family.parents.map(item => `• ${item.name}`).join("\n") || "• Nenhum responsável registrado";
     const children = family.children.map(item => `• ${item.name}`).join("\n") || "• Nenhum filho ou filha registrado";
+    const siblings = family.siblings.map(item => `• ${item.name}`).join("\n") || "• Nenhum irmão ou irmã registrado";
+    const grandparents = family.grandparents.map(item => `• ${item.name}`).join("\n") || "• Nenhum avô ou avó registrado";
+    const grandchildren = family.grandchildren.map(item => `• ${item.name}`).join("\n") || "• Nenhum neto ou neta registrado";
     const requests = pending.length
       ? pending.map(item => `• ${item.parentName} — <@${item.parentDiscordId}>`).join("\n")
       : "• Nenhum pedido pendente";
@@ -43,6 +46,15 @@ export async function handleFamilyCommand(interaction, repository) {
       "",
       "**Filhos e filhas**",
       children,
+      "",
+      "**Irmãos e irmãs**",
+      siblings,
+      "",
+      "**Avós**",
+      grandparents,
+      "",
+      "**Netos e netas**",
+      grandchildren,
       "",
       "**Pedidos de adoção recebidos**",
       requests,
