@@ -13,8 +13,8 @@ function memoryStore() {
 
 test("cadastro cria uma ficha inicial", async () => {
   const repository = memoryStore();
-  const reply = await handleCommand({ from: "5511999999999", text: "!registrar Sakura Haruno", repository, now: 1000 });
-  const player = await repository.getPlayer("5511999999999");
+  const reply = await handleCommand({ from: "discord:123456789012345678", text: "!registrar Sakura Haruno", repository, now: 1000 });
+  const player = await repository.getPlayer("discord:123456789012345678");
   assert.match(reply, /Sakura Haruno/);
   assert.equal(player.level, 1);
   assert.equal(player.ryos, 100);
