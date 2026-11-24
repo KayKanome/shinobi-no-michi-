@@ -16,7 +16,11 @@ export function familyCommands() {
     new SlashCommandBuilder()
       .setName("recusar_adocao")
       .setDescription("Recuse um pedido de adoção.")
-      .addUserOption(option => option.setName("responsavel").setDescription("Quem enviou o pedido.").setRequired(true))
+      .addUserOption(option => option.setName("responsavel").setDescription("Quem enviou o pedido.").setRequired(true)),
+    new SlashCommandBuilder()
+      .setName("cancelar_adocao")
+      .setDescription("Cancele um pedido ou encerre um vínculo de adoção.")
+      .addUserOption(option => option.setName("jogador").setDescription("A outra pessoa envolvida na adoção.").setRequired(true))
   ];
 }
 
@@ -77,6 +81,20 @@ export async function handleFamilyCommand(interaction, repository) {
     await interaction.reply({ content: `🌸 Pedido de adoção enviado para ${target}. A adoção só será registrada se essa pessoa aceitar.`, ephemeral: true });
     await target.send(`🌸 ${interaction.user.username} enviou um pedido para ser seu responsável no Shinobi no Michi. Se quiser aceitar, use /aceitar_adocao e selecione essa pessoa no campo responsável. Para recusar, use /recusar_adocao.`).catch(() => {});
     return;
+  }
+
+  if (command === "cancelar_adocao") {
+    const other = interaction.options.getUser("jogador");
+    if (!other || other.bot || other.id === interaction.user.id) {
+      return interaction.reply({ content: "Selecione a outra pessoa envolvida na adoção.", ephemeral: true });
+    }
+    const cancelled = await repository.cancelAdoption(actorId, `discord:${other.id}`);
+    return interaction.reply({
+      content: cancelled
+        ? "🌿 A adoção foi encerrada/cancelada. O histórico foi preservado, e o vínculo não aparece mais como ativo na família."
+        : "Não encontrei um pedido pendente seu ou um vínculo de adoção ativo com essa pessoa.",
+      ephemeral: true
+    });
   }
 
   if (command === "aceitar_adocao" || command === "recusar_adocao") {
