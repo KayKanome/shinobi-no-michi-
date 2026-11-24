@@ -443,17 +443,18 @@ async function startDiscordBot() {
 
       const firstDelivery = await store.claimMessage(`discord:${message.id}`);
       if (!firstDelivery) return;
+      console.log("Comando recebido no Discord:", JSON.stringify(message.content));
 
       const reply = await handleCommand({
         from: `discord:${message.author.id}`,
         text: message.content,
         repository: store
       });
-      if (reply) await message.reply({ content: reply.slice(0, 1900), allowedMentions: { repliedUser: false } });
+      if (reply) await message.channel.send({ content: reply.slice(0, 1900), allowedMentions: { repliedUser: false } });
     } catch (error) {
       console.error("Falha ao processar mensagem do Discord:", error.message);
       if (message.channel?.isTextBased()) {
-        await message.reply("A Momoka encontrou um problema ao processar esse comando. Tente novamente em instantes.").catch(() => {});
+        await message.channel.send("A Momoka encontrou um problema ao processar esse comando. Tente novamente em instantes.").catch(() => {});
       }
     }
   });
