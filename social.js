@@ -34,6 +34,31 @@ export const SOCIAL_ACTIONS = {
       "https://media.giphy.com/media/ktLSY7TZFY3Rie2JZM/giphy.gif"
     ]
   },
+  tease: {
+    label: "Provocar",
+    verb: "provocou",
+    gifs: ["https://media.giphy.com/media/OrHEJYbSzwz8QfRUl5/giphy.gif"]
+  },
+  dance: {
+    label: "Dançar",
+    verb: "dançou para",
+    gifs: ["https://media.giphy.com/media/kOhxnWg9jYBXG6uedj/giphy.gif"]
+  },
+  angry: {
+    label: "Expressar raiva",
+    verb: "fez uma expressão de raiva para",
+    gifs: ["https://media.giphy.com/media/wjzlpNjQxRFGMBKz2X/giphy.gif"]
+  },
+  sad: {
+    label: "Expressar tristeza",
+    verb: "ficou triste perto de",
+    gifs: ["https://media.giphy.com/media/ROF8OQvDmxytW/giphy.gif"]
+  },
+  facepalm: {
+    label: "Palm face",
+    verb: "fez um palm face para",
+    gifs: ["https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif"]
+  },
   attack: {
     label: "Atacar (poder de anime)",
     verb: "lançou um poder de anime na direção de",
@@ -49,6 +74,11 @@ const SOCIAL_COMMANDS = {
   abracar: "hug",
   carinho: "pat",
   cumprimentar: "wave",
+  provocar: "tease",
+  dancar: "dance",
+  raiva: "angry",
+  tristeza: "sad",
+  palmface: "facepalm",
   atacar: "attack"
 };
 
@@ -74,14 +104,14 @@ function mainPanel(ownerId, avatarUrl) {
     .setTitle("🌸 Cantinho Social da Momoka")
     .setDescription(
       "Escolha uma categoria! Este painel é privado e só você pode controlá-lo.\n\n" +
-      "**🤗 Interações** — abrace, faça carinho, cumprimente ou use um poder de anime.\n" +
+      "**🤗 Interações** — abraço, carinho, cumprimento, provocação, dança e reações.\n" +
       "**💞 Relacionamentos** — em desenvolvimento.\n" +
       "**🌳 Família** — em desenvolvimento.\n" +
       "**🎭 Roleplay** — em desenvolvimento.\n" +
       "**🎮 Jogos** — em desenvolvimento.\n" +
       "**🏮 Eventos** — em desenvolvimento."
     )
-    .setThumbnail(avatarUrl);
+    ;
 
   const rowOne = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("social:cat:interacoes:" + ownerId).setLabel("Interações").setEmoji("🤗").setStyle(ButtonStyle.Primary),
@@ -104,15 +134,22 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const embed = new EmbedBuilder()
       .setColor(0xE89BB5)
       .setTitle("🤗 Interações")
-      .setDescription("Escolha o que deseja fazer e depois selecione uma pessoa. A interação será publicada no canal.")
+      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará somente a ação e o GIF.\n\nDica: use /atacar jogador para usar sem abrir o painel.")
       .setThumbnail(avatarUrl);
-    const actions = new ActionRowBuilder().addComponents(
+    const actionsOne = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Fazer carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:wave:" + ownerId).setLabel("Cumprimentar").setEmoji("👋").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Atacar").setEmoji("✨").setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId("social:act:tease:" + ownerId).setLabel("Provocar").setEmoji("😜").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("social:act:dance:" + ownerId).setLabel("Dançar").setEmoji("💃").setStyle(ButtonStyle.Primary)
     );
-    return { embeds: [embed], components: [actions, back] };
+    const actionsTwo = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("social:act:angry:" + ownerId).setLabel("Raiva").setEmoji("😠").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("social:act:sad:" + ownerId).setLabel("Tristeza").setEmoji("😢").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("social:act:facepalm:" + ownerId).setLabel("Palm face").setEmoji("🤦").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Poder de anime").setEmoji("✨").setStyle(ButtonStyle.Danger)
+    );
+    return { embeds: [embed], components: [actionsOne, actionsTwo, back] };
   }
 
   const sections = {
@@ -133,13 +170,11 @@ async function publishAction(channel, actor, target, action) {
   const targetName = target.globalName || target.username;
   const embed = new EmbedBuilder()
     .setColor(0xE89BB5)
-    .setDescription(formatSocialAction(actorName, targetName, action))
-    .setImage(randomGif(action))
-    .setFooter({ text: "Shinobi no Michi • Momoka" });
+    .setImage(randomGif(action));
   await channel.send({
-    content: "<@" + actor.id + "> <@" + target.id + ">",
+    content: formatSocialAction(actorName, targetName, action),
     embeds: [embed],
-    allowedMentions: { users: [actor.id, target.id] }
+    allowedMentions: { parse: [] }
   });
 }
 
