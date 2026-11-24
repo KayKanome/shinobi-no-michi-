@@ -164,11 +164,13 @@ export async function setupSocialInteractions(client) {
   });
 
   client.on("interactionCreate", async interaction => {
+    console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
         if (interaction.commandName === "social") {
+          await interaction.deferReply({ ephemeral: true });
           const avatar = client.user.displayAvatarURL({ extension: "png", size: 256 });
-          return interaction.reply({ ...mainPanel(interaction.user.id, avatar), ephemeral: true });
+          return interaction.editReply(mainPanel(interaction.user.id, avatar));
         }
 
         if (Object.hasOwn(SOCIAL_COMMANDS, interaction.commandName)) {
