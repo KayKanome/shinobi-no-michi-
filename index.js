@@ -355,7 +355,7 @@ function createPostgresStore() {
 // Em produção, use DATABASE_URL para que reinicializações não apaguem os personagens.
 export const store = DATABASE_URL ? createPostgresStore() : localStore;
 
-async function startDiscordBot() {
+export async function startDiscordBot() {
   if (!DISCORD_BOT_TOKEN) {
     console.log("Discord desativado: configure DISCORD_BOT_TOKEN para conectar a Momoka.");
     return null;
