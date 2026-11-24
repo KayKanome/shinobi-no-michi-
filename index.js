@@ -306,11 +306,20 @@ function createPostgresStore() {
             id BIGSERIAL PRIMARY KEY,
             parent_id TEXT NOT NULL,
             child_id TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined')),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             responded_at TIMESTAMPTZ,
             CHECK (parent_id <> child_id)
           )
+        `);
+        await pool.query(`
+          ALTER TABLE shinobi_family_adoptions
+          DROP CONSTRAINT IF EXISTS shinobi_family_adoptions_status_check
+        `);
+        await pool.query(`
+          ALTER TABLE shinobi_family_adoptions
+          ADD CONSTRAINT shinobi_family_adoptions_status_check
+          CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled'))
         `);
         await pool.query(`
           CREATE UNIQUE INDEX IF NOT EXISTS shinobi_family_active_pair
@@ -445,6 +454,24 @@ function createPostgresStore() {
         ...row,
         parentDiscordId: String(row.parentId).replace(/^discord:/, "")
       }));
+    },
+    async cancelAdoption(actorId, otherId) {
+      await initialize();
+      const result = await pool.query(
+        `UPDATE shinobi_family_adoptions
+         SET status = 'cancelled', responded_at = NOW()
+         WHERE status IN ('pending', 'accepted')
+           AND (
+             (status = 'pending' AND parent_id = $1 AND child_id = $2)
+             OR
+             (status = 'accepted' AND (
+               (parent_id = $1 AND child_id = $2)
+               OR (parent_id = $2 AND child_id = $1)
+             ))
+           )`,
+        [actorId, otherId]
+      );
+      return result.rowCount > 0;
     },
     async declineAdoptionRequest(parentId, childId) {
       await initialize();
