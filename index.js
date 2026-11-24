@@ -11,6 +11,7 @@ const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? "";
 const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN ?? "";
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID ?? "";
 const APP_SECRET = process.env.META_APP_SECRET ?? "";
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION ?? "v27.0";
 const DATA_DIRECTORY = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
@@ -416,6 +417,51 @@ async function processWebhook(payload) {
   }
 }
 
+async function startDiscordBot() {
+  if (!DISCORD_BOT_TOKEN) {
+    console.log("Discord desativado: configure DISCORD_BOT_TOKEN para conectar a Momoka.");
+    return null;
+  }
+
+  const { Client, GatewayIntentBits } = await import("discord.js");
+  const client = new Client({
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.MessageContent
+    ]
+  });
+
+  client.once("ready", () => {
+    console.log(`Momoka conectada ao Discord como ${client.user.tag}.`);
+  });
+
+  client.on("messageCreate", async (message) => {
+    try {
+      if (!message.guild || message.author.bot || !message.content.trim()) return;
+      if (!message.content.trim().startsWith("!")) return;
+
+      const firstDelivery = await store.claimMessage(`discord:${message.id}`);
+      if (!firstDelivery) return;
+
+      const reply = await handleCommand({
+        from: `discord:${message.author.id}`,
+        text: message.content,
+        repository: store
+      });
+      if (reply) await message.reply({ content: reply.slice(0, 1900), allowedMentions: { repliedUser: false } });
+    } catch (error) {
+      console.error("Falha ao processar mensagem do Discord:", error.message);
+      if (message.channel?.isTextBased()) {
+        await message.reply("A Momoka encontrou um problema ao processar esse comando. Tente novamente em instantes.").catch(() => {});
+      }
+    }
+  });
+
+  await client.login(DISCORD_BOT_TOKEN);
+  return client;
+}
+
 function send(response, statusCode, body, contentType = "text/plain; charset=utf-8") {
   response.writeHead(statusCode, {
     "Content-Type": contentType,
@@ -447,6 +493,7 @@ export async function startServer() {
     throw new Error("DATABASE_URL é obrigatório em produção para proteger o progresso dos jogadores.");
   }
   if (typeof store.initialize === "function") await store.initialize();
+  const discordClient = await startDiscordBot();
 
   const server = http.createServer(async (request, response) => {
     const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
@@ -496,6 +543,7 @@ export async function startServer() {
 
   const shutdown = () => server.close(async () => {
     try {
+      if (discordClient) await discordClient.destroy();
       if (typeof store.close === "function") await store.close();
     } finally {
       process.exit(0);
