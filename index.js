@@ -412,10 +412,10 @@ function createPostgresStore() {
     async getFamily(userId) {
       await initialize();
       const [directParents, stepParents, directChildren, stepChildren, siblings, grandparents, grandchildren] = await Promise.all([
-        pool.query(`SELECT p.id, p.data->>'name' AS name, 'Responsável' AS tag
+        pool.query(`SELECT p.id, p.data->>'name' AS name, CASE p.data->>'familyGender' WHEN 'masculino' THEN 'Pai' WHEN 'feminino' THEN 'Mãe' ELSE 'Responsável' END AS tag
           FROM shinobi_family_adoptions a JOIN shinobi_players p ON p.id=a.parent_id
           WHERE a.child_id=$1 AND a.status='accepted' ORDER BY name`,[userId]),
-        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, 'Padrasto/madrasta' AS tag
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, CASE p.data->>'familyGender' WHEN 'masculino' THEN 'Padrasto' WHEN 'feminino' THEN 'Madrasta' ELSE 'Responsável' END AS tag
           FROM shinobi_family_adoptions a
           JOIN shinobi_marriages m ON (m.person_a=a.parent_id OR m.person_b=a.parent_id) AND m.status='accepted'
           JOIN shinobi_players p ON p.id=CASE WHEN m.person_a=a.parent_id THEN m.person_b ELSE m.person_a END
@@ -425,7 +425,7 @@ function createPostgresStore() {
         pool.query(`SELECT p.id, p.data->>'name' AS name, 'Filho(a)' AS tag
           FROM shinobi_family_adoptions a JOIN shinobi_players p ON p.id=a.child_id
           WHERE a.parent_id=$1 AND a.status='accepted' ORDER BY name`,[userId]),
-        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, 'Enteado(a)' AS tag
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, 'Filho(a)' AS tag
           FROM shinobi_marriages m
           JOIN shinobi_family_adoptions a ON a.parent_id=CASE WHEN m.person_a=$1 THEN m.person_b ELSE m.person_a END AND a.status='accepted'
           JOIN shinobi_players p ON p.id=a.child_id
@@ -452,7 +452,7 @@ function createPostgresStore() {
       ]);
       const [spouse, auntsUncles, cousins, niecesNephews] = await Promise.all([
         pool.query(`SELECT p.id, p.data->>'name' AS name,
-          CASE WHEN m.person_a=$1 THEN m.role_b ELSE m.role_a END AS role
+          CASE p.data->>'familyGender' WHEN 'masculino' THEN 'Marido' WHEN 'feminino' THEN 'Esposa' ELSE 'Cônjuge' END AS role
           FROM shinobi_marriages m JOIN shinobi_players p
           ON p.id=CASE WHEN m.person_a=$1 THEN m.person_b ELSE m.person_a END
           WHERE (m.person_a=$1 OR m.person_b=$1) AND m.status='accepted'`,[userId]),
