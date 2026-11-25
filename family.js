@@ -27,12 +27,12 @@ export async function handleFamilyCommand(interaction, repository) {
     const family=await repository.getFamily(actorId),adoptions=await repository.getPendingAdoptions(actorId),marriages=await repository.getPendingMarriages(actorId);
     const names=rows=>rows.length?rows.map(x=>x.name).join(" • "):"—";
     const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle(`🌳 Árvore da Família de ${player.name}`).setDescription([
-      "**💍 Laço conjugal**",family.spouse.length?family.spouse.map(x=>`${x.name} — ${x.role||"Cônjuge"}`).join("\\n"):"Ainda não há cônjuge registrado.",
+      "**💍 Laço conjugal**",family.spouse.length?family.spouse.map(x=>`${x.name} — ${x.role||"Cônjuge"}`).join("\n"):"Ainda não há cônjuge registrado.",
       "**🌱 Geração acima — responsáveis**",names(family.parents),"**🌿 Sua geração — irmãos**",names(family.siblings),"**🌸 Geração abaixo — filhos**",names(family.children),
-      "**🌳 Outras gerações**",`Avós: ${names(family.grandparents)}\\nNetos: ${names(family.grandchildren)}`,
-      "**🍃 Família extensa**",`Tios: ${names(family.auntsUncles)}\\nPrimos: ${names(family.cousins)}\\nSobrinhos: ${names(family.niecesNephews)}`,
+      "**🌳 Outras gerações**",`Avós: ${names(family.grandparents)}\nNetos: ${names(family.grandchildren)}`,
+      "**🍃 Família extensa**",`Tios: ${names(family.auntsUncles)}\nPrimos: ${names(family.cousins)}\nSobrinhos: ${names(family.niecesNephews)}`,
       "**📜 Convites pendentes**",`Adoção: ${adoptions.length} • Casamento: ${marriages.length}`,"_Os vínculos são construídos com consentimento; o histórico é preservado._"
-    ].join("\\n\\n")).setFooter({text:"Shinobi no Michi • Laços construídos com carinho"});
+    ].join("\n\n")).setFooter({text:"Shinobi no Michi • Laços construídos com carinho"});
     return interaction.editReply({embeds:[embed]});
   }
   if (command === "adotar") {
