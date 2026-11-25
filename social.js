@@ -204,7 +204,7 @@ export async function setupSocialInteractions(client, repository) {
     console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
-        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento"].includes(interaction.commandName)) {
+        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "desertar", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento"].includes(interaction.commandName)) {
           return await handleFamilyCommand(interaction, repository);
         }
         if (interaction.commandName === "social") {
@@ -228,6 +228,13 @@ export async function setupSocialInteractions(client, repository) {
         }
       }
 
+      if (interaction.isButton() && interaction.customId.startsWith("family:desertar:")) {
+        const [, , action, ownerId, otherId] = interaction.customId.split(":");
+        if (interaction.user.id !== ownerId) return interaction.reply({ content: "Somente quem iniciou esta confirmação pode usá-la.", ephemeral: true });
+        if (action === "cancel") return interaction.update({ content: "Desvinculação cancelada. Nenhuma alteração foi feita.", components: [] });
+        const ok = await repository.cancelAdoption(`discord:${ownerId}`, `discord:${otherId}`);
+        return interaction.update({ content: ok ? "🌿 Vínculo de adoção encerrado. A árvore familiar será atualizada e o histórico foi preservado." : "Não encontrei pedido pendente ou adoção ativa entre vocês. Nenhuma alteração foi feita.", components: [] });
+      }
       if (!interaction.isButton() && !interaction.isUserSelectMenu()) return;
       if (!interaction.customId.startsWith("social:")) return;
 
