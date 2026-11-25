@@ -146,11 +146,10 @@ function categoryPanel(category, ownerId, avatarUrl) {
   }
 
   if (category === "familia") {
-    const embed = new EmbedBuilder()
-      .setColor(0xE89BB5)
-      .setTitle("🌳 Família")
-      .setDescription("O sistema de família funciona por adoção. Não há limite de filhos e não é necessário estar casado para ser pai ou mãe.\n\n**/familia** — consultar sua família e pedidos recebidos.\n**/adotar jogador** — enviar um pedido de adoção.\n**/aceitar_adocao responsavel** — aceitar um pedido.\n**/recusar_adocao responsavel** — recusar um pedido.\n**/desertar jogador** — encerrar um vínculo de adoção, com confirmação.\n\nA adoção só é concluída com a aceitação da outra pessoa. O certificado da loja será conectado depois.");
-    return { embeds: [embed], components: [back] };
+    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle("🌳 Família & Laços").setDescription("Construa sua própria história no Shinobi no Michi. A família nasce da adoção, sem limite de filhos e sem exigir casamento.\n\n**Comandos**\n/familia — árvore genealógica\n/adotar jogador — convite de adoção\n/desertar jogador — encerrar adoção\n/casar jogador — pedido de casamento\n/cancelar_casamento pessoa — encerrar vínculo\n/papel_casamento — escolher Cônjuge, Marido ou Esposa\n\nOs convites aparecem no canal e só são concluídos com consentimento.");
+    const row1=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("social:family:tree:"+ownerId).setLabel("Minha família").setEmoji("🌳").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId("social:family:adopt:"+ownerId).setLabel("Adotar").setEmoji("🌱").setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId("social:family:marry:"+ownerId).setLabel("Casamento").setEmoji("💍").setStyle(ButtonStyle.Primary));
+    const row2=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("social:family:unlink:"+ownerId).setLabel("Desvincular adoção").setEmoji("🍃").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("social:family:divorce:"+ownerId).setLabel("Encerrar casamento").setEmoji("💔").setStyle(ButtonStyle.Secondary),back.components[0]);
+    return {embeds:[embed],components:[row1,row2]};
   }
 
   const sections = {
@@ -204,7 +203,7 @@ export async function setupSocialInteractions(client, repository) {
     console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
-        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "desertar", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento"].includes(interaction.commandName)) {
+        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "desertar", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento", "papel_casamento"].includes(interaction.commandName)) {
           return await handleFamilyCommand(interaction, repository);
         }
         if (interaction.commandName === "social") {
@@ -234,6 +233,61 @@ export async function setupSocialInteractions(client, repository) {
         if (action === "cancel") return interaction.update({ content: "Desvinculação cancelada. Nenhuma alteração foi feita.", components: [] });
         const ok = await repository.cancelAdoption(`discord:${ownerId}`, `discord:${otherId}`);
         return interaction.update({ content: ok ? "🌿 Vínculo de adoção encerrado. A árvore familiar será atualizada e o histórico foi preservado." : "Não encontrei pedido pendente ou adoção ativa entre vocês. Nenhuma alteração foi feita.", components: [] });
+      }
+      if ((interaction.isButton() || interaction.isUserSelectMenu()) && interaction.customId.startsWith("social:family")) {
+        if(!isSocialPanelOwner(interaction.customId,interaction.user.id))return interaction.reply({content:"Este painel pertence a outra pessoa. Use /social para abrir o seu.",ephemeral:true});
+        const p=interaction.customId.split(":"),owner=interaction.user.id;
+        if(interaction.isButton()&&p[2]==="tree"){
+          const player=await repository.getPlayer(`discord:${owner}`);
+          if(!player)return interaction.reply({content:"Registre seu personagem primeiro com !registrar SeuNome.",ephemeral:true});
+          const fam=await repository.getFamily(`discord:${owner}`),line=(t,a)=>`**${t}**\\n${a.length?a.map(x=>x.name).join(" • "):"—"}`;
+          const e=new EmbedBuilder().setColor(0x8DBB83).setTitle(`🌳 Árvore de ${player.name}`).setDescription([line("💍 Cônjuge",fam.spouse.map(x=>({name:`${x.name} — ${x.role||"Cônjuge"}`}))),line("🌱 Responsáveis",fam.parents),line("🌿 Irmãos",fam.siblings),line("🌸 Filhos",fam.children),line("🌳 Avós",fam.grandparents),line("🍃 Netos",fam.grandchildren),line("🌼 Tios",fam.auntsUncles),line("🪷 Primos",fam.cousins),line("🍂 Sobrinhos",fam.niecesNephews)].join("\\n\\n")).setFooter({text:"Laços construídos com consentimento"});
+          return interaction.reply({embeds:[e],ephemeral:true});
+        }
+        if(interaction.isButton()&&["adopt","marry","unlink","divorce"].includes(p[2])){
+          const act=p[2],menu=new UserSelectMenuBuilder().setCustomId(`social:familytarget:${act}:${owner}`).setPlaceholder("Escolha a pessoa").setMinValues(1).setMaxValues(1);
+          const q={adopt:"Quem você deseja convidar para fazer parte da família?",marry:"Quem você deseja pedir em casamento?",unlink:"Com quem deseja encerrar o vínculo de adoção?",divorce:"Com quem deseja encerrar o casamento?"};
+          return interaction.reply({content:q[act],components:[new ActionRowBuilder().addComponents(menu)],ephemeral:true});
+        }
+        if(interaction.isUserSelectMenu()&&p[1]==="familytarget"){
+          const act=p[2],target=interaction.users.first(),actor=`discord:${owner}`,other=`discord:${target?.id}`;
+          if(!target||target.bot||target.id===owner)return interaction.reply({content:"Escolha outra pessoa do servidor.",ephemeral:true});
+          if(act==="adopt"||act==="marry"){
+            if(!await repository.getPlayer(actor)||!await repository.getPlayer(other))return interaction.reply({content:"Os dois jogadores precisam ter personagens registrados.",ephemeral:true});
+            const marriage=act==="marry",result=marriage?await repository.createMarriageRequest(actor,other):await repository.createAdoptionRequest(actor,other);
+            if(result!=="created")return interaction.reply({content:result==="married"?"Uma das pessoas já possui casamento ativo.":"Já existe um pedido ou vínculo ativo entre vocês.",ephemeral:true});
+            const e=new EmbedBuilder().setColor(marriage?0xE89BB5:0x8DBB83).setTitle(marriage?"💍 Um pedido especial":"🌱 Um novo laço pode nascer").setDescription(marriage?`${interaction.user} gostaria de construir uma história a dois com ${target}. ${target}, você aceita?`:`${interaction.user} deseja adotar ${target} e construir uma família. ${target}, você aceita?`).setFooter({text:marriage?"O registro inicial será Cônjuge; cada pessoa pode mudar seu papel depois.":"A decisão é sua. O vínculo só começa com seu consentimento."});
+            const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:${marriage?"marriage":"adoption"}:accept:${owner}:${target.id}`).setLabel("Aceitar").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId(`family:${marriage?"marriage":"adoption"}:decline:${owner}:${target.id}`).setLabel("Recusar").setStyle(ButtonStyle.Secondary));
+            await interaction.channel.send({content:target.toString(),embeds:[e],components:[row],allowedMentions:{users:[target.id]}});
+            return interaction.update({content:"Convite publicado neste canal. 🌸",components:[]});
+          }
+          if(act==="unlink")return interaction.reply({content:`Confirma encerrar o vínculo de adoção com ${target}?`,components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:unlink-confirm:${owner}:${target.id}`).setLabel("Sim, desvincular").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("social:back:"+owner).setLabel("Cancelar").setStyle(ButtonStyle.Secondary))],ephemeral:true});
+          if(act==="divorce"){const ok=await repository.cancelMarriage(actor,other);return interaction.update({content:ok?"💔 Casamento encerrado. O histórico foi preservado.":"Não encontrei casamento ativo entre vocês.",components:[]});}
+        }
+      }
+      if(interaction.isButton()&&interaction.customId.startsWith("family:unlink-confirm:")){
+        const [, ,owner,other]=interaction.customId.split(":");
+        if(interaction.user.id!==owner)return interaction.reply({content:"Somente quem iniciou pode confirmar.",ephemeral:true});
+        const ok=await repository.cancelAdoption(`discord:${owner}`,`discord:${other}`);
+        return interaction.update({content:ok?"🌿 Vínculo encerrado. O histórico foi preservado.":"Não encontrei adoção ativa entre vocês.",components:[]});
+      }
+      if(interaction.isButton()&&interaction.customId.startsWith("family:")&&!interaction.customId.startsWith("family:unlink-confirm:")){
+        const [,kind,action,requesterId,recipientId]=interaction.customId.split(":");
+        if(interaction.user.id!==recipientId)return interaction.reply({content:"Este convite foi destinado a outra pessoa. 🌸",ephemeral:true});
+        const requester=`discord:${requesterId}`,recipient=`discord:${recipientId}`;
+        if(kind==="adoption"){
+          const result=action==="accept"?await repository.acceptAdoptionRequest(requester,recipient):(await repository.declineAdoptionRequest(requester,recipient)?"declined":"missing");
+          if(result==="missing")return interaction.reply({content:"Este convite não está mais disponível.",ephemeral:true});
+          const ok=result==="accepted",e=EmbedBuilder.from(interaction.message.embeds[0]).setColor(ok?0x8DBB83:0x888888).setFooter({text:ok?"Adoção confirmada. Um novo laço familiar foi criado.":"Convite recusado."});
+          return interaction.update({embeds:[e],components:[]});
+        }
+        if(kind==="marriage"){
+          const result=action==="accept"?await repository.acceptMarriageRequest(requester,recipient):(await repository.declineMarriageRequest(requester,recipient)?"declined":"missing");
+          if(result==="missing")return interaction.reply({content:"Este convite não está mais disponível.",ephemeral:true});
+          if(result==="married")return interaction.reply({content:"Uma das pessoas já possui casamento ativo.",ephemeral:true});
+          const ok=result==="accepted",e=EmbedBuilder.from(interaction.message.embeds[0]).setColor(ok?0xE89BB5:0x888888).setFooter({text:ok?"Casamento confirmado! Ambos começam como Cônjuge e podem alterar o próprio papel com /papel_casamento.":"Convite recusado."});
+          return interaction.update({embeds:[e],components:[]});
+        }
       }
       if (!interaction.isButton() && !interaction.isUserSelectMenu()) return;
       if (!interaction.customId.startsWith("social:")) return;
