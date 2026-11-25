@@ -240,8 +240,8 @@ export async function setupSocialInteractions(client, repository) {
         if(interaction.isButton()&&p[2]==="tree"){
           const player=await repository.getPlayer(`discord:${owner}`);
           if(!player)return interaction.reply({content:"Registre seu personagem primeiro com !registrar SeuNome.",ephemeral:true});
-          const fam=await repository.getFamily(`discord:${owner}`),line=(t,a)=>`**${t}**\\n${a.length?a.map(x=>x.name).join(" • "):"—"}`;
-          const e=new EmbedBuilder().setColor(0x8DBB83).setTitle(`🌳 Árvore de ${player.name}`).setDescription([line("💍 Cônjuge",fam.spouse.map(x=>({name:`${x.name} — ${x.role||"Cônjuge"}`}))),line("🌱 Responsáveis",fam.parents),line("🌿 Irmãos",fam.siblings),line("🌸 Filhos",fam.children),line("🌳 Avós",fam.grandparents),line("🍃 Netos",fam.grandchildren),line("🌼 Tios",fam.auntsUncles),line("🪷 Primos",fam.cousins),line("🍂 Sobrinhos",fam.niecesNephews)].join("\\n\\n")).setFooter({text:"Laços construídos com consentimento"});
+          const fam=await repository.getFamily(`discord:${owner}`),line=(t,a)=>`**${t}**\n${a.length?a.map(x=>x.name).join(" • "):"—"}`;
+          const e=new EmbedBuilder().setColor(0x8DBB83).setTitle(`🌳 Árvore de ${player.name}`).setDescription([line("💍 Cônjuge",fam.spouse.map(x=>({name:`${x.name} — ${x.role||"Cônjuge"}`}))),line("🌱 Responsáveis",fam.parents),line("🌿 Irmãos",fam.siblings),line("🌸 Filhos",fam.children),line("🌳 Avós",fam.grandparents),line("🍃 Netos",fam.grandchildren),line("🌼 Tios",fam.auntsUncles),line("🪷 Primos",fam.cousins),line("🍂 Sobrinhos",fam.niecesNephews)].join("\n\n")).setFooter({text:"Laços construídos com consentimento"});
           return interaction.reply({embeds:[e],ephemeral:true});
         }
         if(interaction.isButton()&&["adopt","marry","unlink","divorce"].includes(p[2])){
