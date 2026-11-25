@@ -29,7 +29,8 @@ export async function handleFamilyCommand(interaction, repository) {
     const png=await renderFamilyTree({player,family,ownerId:interaction.user.id,client:interaction.client});
     const attachment=new AttachmentBuilder(png,{name:"arvore-genealogica.png"});
     const embed=new EmbedBuilder().setColor(0xB68A45).setTitle(`🌳 Linhagem de ${player.name}`).setDescription("Uma história, muitos laços. Cada retrato representa alguém que faz parte da sua família.").setImage("attachment://arvore-genealogica.png").setFooter({text:"Shinobi no Michi • Árvore genealógica"});
-    return interaction.editReply({embeds:[embed],files:[attachment]});
+    await interaction.channel.send({embeds:[embed],files:[attachment]});
+    return interaction.editReply("🌳 Sua árvore genealógica foi publicada neste canal para todos consultarem.");
   }
   if (command === "adotar") {
     const target = interaction.options.getUser("jogador");
