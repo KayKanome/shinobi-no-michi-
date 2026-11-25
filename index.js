@@ -334,6 +334,8 @@ function createPostgresStore() {
             CHECK (person_a <> person_b)
           )
         `);
+        await pool.query(`ALTER TABLE shinobi_marriages ADD COLUMN IF NOT EXISTS role_a TEXT NOT NULL DEFAULT 'conjuge'`);
+        await pool.query(`ALTER TABLE shinobi_marriages ADD COLUMN IF NOT EXISTS role_b TEXT NOT NULL DEFAULT 'conjuge'`);
         await pool.query(`
           CREATE UNIQUE INDEX IF NOT EXISTS shinobi_marriages_active_pair
           ON shinobi_marriages (person_a, person_b) WHERE status IN ('pending', 'accepted')
@@ -458,7 +460,7 @@ function createPostgresStore() {
         )
       ]);
       const [spouse, auntsUncles, cousins, niecesNephews] = await Promise.all([
-        pool.query(`SELECT p.data->>'name' AS name FROM shinobi_marriages m
+        pool.query(`SELECT p.data->>'name' AS name, CASE WHEN m.person_a=$1 THEN m.role_b ELSE m.role_a END AS role FROM shinobi_marriages m
           JOIN shinobi_players p ON p.id = CASE WHEN m.person_a = $1 THEN m.person_b ELSE m.person_a END
           WHERE (m.person_a = $1 OR m.person_b = $1) AND m.status = 'accepted'`, [userId]),
         pool.query(`SELECT DISTINCT p.data->>'name' AS name
@@ -571,6 +573,12 @@ function createPostgresStore() {
         if(e.code==="23505") return "married";
         throw e;
       } finally {c.release();}
+    },
+    async setMarriageRole(userId, role) {
+      await initialize();
+      if(!["conjuge","marido","esposa"].includes(role))return false;
+      const r=await pool.query(`UPDATE shinobi_marriages SET role_a=CASE WHEN person_a=$1 THEN $2 ELSE role_a END, role_b=CASE WHEN person_b=$1 THEN $2 ELSE role_b END WHERE status='accepted' AND (person_a=$1 OR person_b=$1)`,[userId,role]);
+      return r.rowCount>0;
     },
     async cancelMarriage(actorId, otherId) {
       await initialize();
