@@ -24,7 +24,9 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
     {label:"RAMOS DA FAMÍLIA",subtitle:"Tios, primos e sobrinhos",items:[...(family.siblings||[]).slice(2).map(x=>({...x,tag:"Irmão"})),...(family.auntsUncles||[]).map(x=>({...x,tag:"Tio/tia"})),...(family.cousins||[]).map(x=>({...x,tag:"Primo(a)"})),...(family.niecesNephews||[]).map(x=>({...x,tag:"Sobrinho(a)"})),...(family.grandchildren||[]).map(x=>({...x,tag:"Neto(a)"}))],color:"#A67C43"}
   ];
   const rootUser=await client.users.fetch(ownerId).catch(()=>null);
-  const rootTag=(family.parents||[]).length?"FILHO(A)":(player.familyGender==="masculino"?"MARIDO":player.familyGender==="feminino"?"ESPOSA":"CÔNJUGE");
+  const hasParents=(family.parents||[]).length>0, hasSpouse=(family.spouse||[]).length>0;
+  const genderRole=player.familyGender==="masculino"?"MARIDO":player.familyGender==="feminino"?"ESPOSA":"CÔNJUGE";
+  const rootTag=hasParents&&hasSpouse?`FILHO(A) • ${genderRole}`:hasParents?"FILHO(A)":hasSpouse?genderRole:"PERSONAGEM";
   const root={id:"discord:"+ownerId,name:player.name,tag:rootTag,avatar:rootUser?await avatarData(client,ownerId):null,root:true};
   for(const group of groups) {
     group.items=group.items.filter(x=>x.id && x.id!=="discord:"+ownerId);
