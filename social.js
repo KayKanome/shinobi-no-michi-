@@ -271,7 +271,7 @@ export async function setupSocialInteractions(client, repository) {
         const ok=await repository.cancelAdoption(`discord:${owner}`,`discord:${other}`);
         return interaction.update({content:ok?"🌿 Vínculo encerrado. O histórico foi preservado.":"Não encontrei adoção ativa entre vocês.",components:[]});
       }
-      if(interaction.isButton()&&interaction.customId.startsWith("family:")&&!interaction.customId.startsWith("family:unlink-confirm:")){
+      if(interaction.isButton()&&(interaction.customId.startsWith("family:adoption:")||interaction.customId.startsWith("family:marriage:"))){
         const [,kind,action,requesterId,recipientId]=interaction.customId.split(":");
         if(interaction.user.id!==recipientId)return interaction.reply({content:"Este convite foi destinado a outra pessoa. 🌸",ephemeral:true});
         const requester=`discord:${requesterId}`,recipient=`discord:${recipientId}`;
