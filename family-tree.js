@@ -73,17 +73,27 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   svg+=labels;
   for(let i=0;i<groups.length;i++){
     const g=groups[i],y=rowY[i],items=g.items;
-    let cards=items;
-    if(i===2)cards=[...items.filter(x=>x.tag==="Irmão"),root,...items.filter(x=>x.tag!=="Irmão")];
-    if(!cards.length){
+    let placements=[];
+    if(i===2){
+      const rootX=(W-cardW)/2;
+      const siblings=items.filter(x=>x.tag==="Irmão");
+      const spouses=items.filter(x=>x.tag!=="Irmão");
+      siblings.forEach((item,j)=>placements.push({item,x:rootX-(j+1)*(cardW+gap)}));
+      placements.push({item:root,x:rootX});
+      spouses.forEach((item,j)=>placements.push({item,x:rootX+(j+1)*(cardW+gap)}));
+      placements.sort((a,b)=>a.x-b.x);
+    } else {
+      const total=items.length*cardW+(items.length-1)*gap;
+      const start=(W-total)/2;
+      items.forEach((item,j)=>placements.push({item,x:start+j*(cardW+gap)}));
+    }
+    if(!placements.length){
       svg+=`<text x="800" y="${y+105}" text-anchor="middle" font-family="Georgia,serif" font-size="25" font-style="italic" fill="#9A8059">Este ramo ainda aguarda novos laços</text>`;
       continue;
     }
-    const total=cards.length*cardW+(cards.length-1)*gap;
-    const start=(W-total)/2;
     const centers=[];
-    cards.forEach((item,j)=>{
-      const x=start+j*(cardW+gap);centers.push(x+cardW/2);
+    placements.forEach(({item,x})=>{
+      centers.push(x+cardW/2);
       svg+=card(item,x,y,g.color,!!item.root);
     });
     const lineY=y-26;
