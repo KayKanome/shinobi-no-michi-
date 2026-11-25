@@ -27,7 +27,7 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   const root={id:"discord:"+ownerId,name:player.name,tag:"PERSONAGEM",avatar:rootUser?await avatarData(client,ownerId):null,root:true};
   for(const group of groups) {
     group.items=group.items.filter(x=>x.id && x.id!=="discord:"+ownerId).slice(0,group.label==="SEU NÚCLEO"?4:5);
-    for(const item of group.items)item.avatar=await avatarData(client,item.id);
+    await Promise.all(group.items.map(async item=>{item.avatar=await avatarData(client,item.id);}));
   }
   const W=1600, cardW=240, cardH=214, gap=34, left=55;
   const rowY=[300,610,920,1230,1540];
