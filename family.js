@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 
 export function familyCommands() {
   return [
@@ -11,7 +11,8 @@ export function familyCommands() {
     new SlashCommandBuilder().setName("casar").setDescription("Peça outra pessoa em casamento.").addUserOption(o => o.setName("jogador").setDescription("Com quem deseja se casar.").setRequired(true)),
     new SlashCommandBuilder().setName("aceitar_casamento").setDescription("Aceite um pedido de casamento.").addUserOption(o => o.setName("pessoa").setDescription("Quem enviou o pedido.").setRequired(true)),
     new SlashCommandBuilder().setName("recusar_casamento").setDescription("Recuse um pedido de casamento.").addUserOption(o => o.setName("pessoa").setDescription("Quem enviou o pedido.").setRequired(true)),
-    new SlashCommandBuilder().setName("cancelar_casamento").setDescription("Encerre um casamento ou cancele um pedido.").addUserOption(o => o.setName("pessoa").setDescription("A outra pessoa envolvida.").setRequired(true))
+    new SlashCommandBuilder().setName("cancelar_casamento").setDescription("Encerre um casamento ou cancele um pedido.").addUserOption(o => o.setName("pessoa").setDescription("A outra pessoa envolvida.").setRequired(true)),
+    new SlashCommandBuilder().setName("papel_casamento").setDescription("Altere como deseja aparecer no casamento.").addStringOption(o => o.setName("papel").setDescription("Seu papel").setRequired(true).addChoices({name:"Cônjuge",value:"conjuge"},{name:"Marido",value:"marido"},{name:"Esposa",value:"esposa"}))
   ];
 }
 const validOther = (user, interaction) => user && !user.bot && user.id !== interaction.user.id;
@@ -20,30 +21,19 @@ export async function handleFamilyCommand(interaction, repository) {
   const actorId = `discord:${interaction.user.id}`;
   const command = interaction.commandName;
   if (command === "familia") {
-    await interaction.deferReply({ ephemeral: true });
-    const player = await repository.getPlayer(actorId);
-    if (!player) return interaction.editReply("Você ainda não criou seu personagem. Use !registrar SeuNome primeiro.");
-    const f = await repository.getFamily(actorId);
-    const adoptions = await repository.getPendingAdoptions(actorId);
-    const marriages = await repository.getPendingMarriages(actorId);
-    const section = (title, rows, empty) => [`**${title}**`, rows.length ? rows.map(x => `• ${x.name}`).join("\n") : `• ${empty}`].join("\n");
-    return interaction.editReply([
-      `🌳 **Família de ${player.name}**`,
-      section("Cônjuge", f.spouse, "Nenhum casamento ativo"),
-      section("Pais e responsáveis", f.parents, "Nenhum responsável registrado"),
-      section("Filhos e filhas", f.children, "Nenhum filho ou filha registrado"),
-      section("Irmãos e irmãs", f.siblings, "Nenhum irmão ou irmã registrado"),
-      section("Avós", f.grandparents, "Nenhum avô ou avó registrado"),
-      section("Netos e netas", f.grandchildren, "Nenhum neto ou neta registrado"),
-      section("Tios e tias", f.auntsUncles, "Nenhum tio ou tia registrado"),
-      section("Primos e primas", f.cousins, "Nenhum primo ou prima registrado"),
-      section("Sobrinhos e sobrinhas", f.niecesNephews, "Nenhum sobrinho ou sobrinha registrado"),
-      "**Pedidos de adoção recebidos**",
-      adoptions.length ? adoptions.map(x => `• ${x.parentName} — <@${x.parentDiscordId}>`).join("\n") : "• Nenhum pedido pendente",
-      "**Pedidos de casamento recebidos**",
-      marriages.length ? marriages.map(x => `• ${x.name} — <@${x.discordId}>`).join("\n") : "• Nenhum pedido pendente",
-      "A família considera os vínculos de adoção aceitos. Relacionamentos e adoções só começam com consentimento; qualquer uma das pessoas envolvidas pode encerrar."
-    ].join("\n\n"));
+    await interaction.deferReply({ephemeral:true});
+    const player=await repository.getPlayer(actorId);
+    if(!player)return interaction.editReply("Você ainda não criou seu personagem. Use !registrar SeuNome primeiro.");
+    const family=await repository.getFamily(actorId),adoptions=await repository.getPendingAdoptions(actorId),marriages=await repository.getPendingMarriages(actorId);
+    const names=rows=>rows.length?rows.map(x=>x.name).join(" • "):"—";
+    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle(`🌳 Árvore da Família de ${player.name}`).setDescription([
+      "**💍 Laço conjugal**",family.spouse.length?family.spouse.map(x=>`${x.name} — ${x.role||"Cônjuge"}`).join("\\n"):"Ainda não há cônjuge registrado.",
+      "**🌱 Geração acima — responsáveis**",names(family.parents),"**🌿 Sua geração — irmãos**",names(family.siblings),"**🌸 Geração abaixo — filhos**",names(family.children),
+      "**🌳 Outras gerações**",`Avós: ${names(family.grandparents)}\\nNetos: ${names(family.grandchildren)}`,
+      "**🍃 Família extensa**",`Tios: ${names(family.auntsUncles)}\\nPrimos: ${names(family.cousins)}\\nSobrinhos: ${names(family.niecesNephews)}`,
+      "**📜 Convites pendentes**",`Adoção: ${adoptions.length} • Casamento: ${marriages.length}`,"_Os vínculos são construídos com consentimento; o histórico é preservado._"
+    ].join("\\n\\n")).setFooter({text:"Shinobi no Michi • Laços construídos com carinho"});
+    return interaction.editReply({embeds:[embed]});
   }
   if (command === "adotar") {
     const target = interaction.options.getUser("jogador");
@@ -52,8 +42,10 @@ export async function handleFamilyCommand(interaction, repository) {
     if (!await repository.getPlayer(`discord:${target.id}`)) return interaction.reply({ content: "Essa pessoa ainda não registrou um personagem no RPG.", ephemeral: true });
     const result = await repository.createAdoptionRequest(actorId, `discord:${target.id}`);
     if (result !== "created") return interaction.reply({ content: "Já existe um pedido ou vínculo ativo entre vocês.", ephemeral: true });
-    await interaction.reply({ content: `🌸 Pedido de adoção enviado para ${target}. Só será concluído quando a pessoa aceitar.`, ephemeral: true });
-    await target.send(`🌸 ${interaction.user.username} enviou um pedido para ser seu responsável no Shinobi no Michi. Use /aceitar_adocao ou /recusar_adocao para responder. Qualquer um dos dois poderá encerrar o vínculo depois.`).catch(() => {});
+    await interaction.reply({content:"🌸 Convite publicado neste canal.",ephemeral:true});
+    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle("🌱 Um novo laço pode nascer").setDescription(`${interaction.user} deseja adotar ${target} e construir uma família no Shinobi no Michi. ${target}, você aceita?`).setFooter({text:"A decisão é sua. O vínculo só começa com seu consentimento."});
+    const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:adoption:accept:${interaction.user.id}:${target.id}`).setLabel("Aceitar").setEmoji("🌸").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId(`family:adoption:decline:${interaction.user.id}:${target.id}`).setLabel("Recusar").setEmoji("🍃").setStyle(ButtonStyle.Secondary));
+    await interaction.channel.send({content:target.toString(),embeds:[embed],components:[row],allowedMentions:{users:[target.id]}});
     return;
   }
   if (command === "desertar") {
@@ -96,8 +88,10 @@ export async function handleFamilyCommand(interaction, repository) {
     const result = await repository.createMarriageRequest(actorId, `discord:${target.id}`);
     if (result === "married") return interaction.reply({ content: "Uma das pessoas já possui casamento ativo.", ephemeral: true });
     if (result !== "created") return interaction.reply({ content: "Já existe um pedido de casamento entre vocês.", ephemeral: true });
-    await interaction.reply({ content: `💍 Pedido de casamento enviado para ${target}. O casamento só começa se a pessoa aceitar.`, ephemeral: true });
-    await target.send(`💍 ${interaction.user.username} pediu você em casamento no Shinobi no Michi! Use /aceitar_casamento ou /recusar_casamento para responder. O casamento só começa com seu consentimento.`).catch(() => {});
+    await interaction.reply({content:"💍 Pedido publicado neste canal.",ephemeral:true});
+    const embed=new EmbedBuilder().setColor(0xE89BB5).setTitle("💍 Um pedido especial").setDescription(`${interaction.user} gostaria de construir uma história a dois com ${target} no Shinobi no Michi. ${target}, você aceita?`).setFooter({text:"O registro inicial será neutro: Cônjuge. Cada pessoa poderá mudar seu papel depois."});
+    const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:marriage:accept:${interaction.user.id}:${target.id}`).setLabel("Aceitar").setEmoji("💗").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId(`family:marriage:decline:${interaction.user.id}:${target.id}`).setLabel("Recusar").setEmoji("🍃").setStyle(ButtonStyle.Secondary));
+    await interaction.channel.send({content:target.toString(),embeds:[embed],components:[row],allowedMentions:{users:[target.id]}});
     return;
   }
   if (["aceitar_casamento", "recusar_casamento"].includes(command)) {
@@ -113,6 +107,10 @@ export async function handleFamilyCommand(interaction, repository) {
     if (result === "missing") return interaction.reply({ content: "Não encontrei um pedido pendente dessa pessoa.", ephemeral: true });
     if (result === "married") return interaction.reply({ content: "Uma das pessoas já possui casamento ativo.", ephemeral: true });
     return interaction.reply({ content: `💍 Casamento confirmado! ${interaction.user.username} e ${proposer.username} agora estão casados no Shinobi no Michi.`, ephemeral: false });
+  }
+  if (command === "papel_casamento") {
+    const role=interaction.options.getString("papel"),ok=await repository.setMarriageRole(actorId,role);
+    return interaction.reply({content:ok?`🌸 Seu papel agora está registrado como **${role==="conjuge"?"Cônjuge":role}**.`:"Você precisa ter um casamento ativo para alterar seu papel.",ephemeral:true});
   }
   if (command === "cancelar_casamento") {
     const other = interaction.options.getUser("pessoa");
