@@ -290,7 +290,8 @@ export async function setupSocialInteractions(client, repository) {
           const result=action==="accept"?await repository.acceptMarriageRequest(requester,recipient):(await repository.declineMarriageRequest(requester,recipient)?"declined":"missing");
           if(result==="missing")return interaction.reply({content:"Este convite não está mais disponível.",ephemeral:true});
           if(result==="married")return interaction.reply({content:"Uma das pessoas já possui casamento ativo.",ephemeral:true});
-          const ok=result==="accepted",e=EmbedBuilder.from(interaction.message.embeds[0]).setColor(ok?0xE89BB5:0x888888).setFooter({text:ok?"Casamento confirmado! Ambos começam como Cônjuge e podem alterar o próprio papel com /papel_casamento.":"Convite recusado."});
+          if(result==="related")return interaction.reply({content:"O casamento não pode ser confirmado porque existe parentesco registrado entre vocês.",ephemeral:true});
+          const ok=result==="accepted",e=EmbedBuilder.from(interaction.message.embeds[0]).setColor(ok?0xE89BB5:0x888888).setFooter({text:ok?"Casamento confirmado! Ambos começam como Cônjuge. Use /papel para alterar entre esposa ou marido.":"Convite recusado."});
           return interaction.update({embeds:[e],components:[]});
         }
       }
