@@ -148,7 +148,7 @@ function categoryPanel(category, ownerId, avatarUrl) {
   }
 
   if (category === "familia") {
-    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle("🌳 Família & Laços").setDescription("Construa sua própria história no Shinobi no Michi. A família nasce da adoção, sem limite de filhos e sem exigir casamento.\n\n**Comandos**\n/familia — árvore genealógica\n/adotar jogador — convite de adoção\n/desertar jogador — encerrar adoção\n/casar jogador — pedido de casamento\n/cancelar_casamento pessoa — encerrar vínculo\n/papel_casamento — escolher Cônjuge, Marido ou Esposa\n\nOs convites aparecem no canal e só são concluídos com consentimento.");
+    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle("🌳 Família & Laços").setDescription("Construa sua própria história no Shinobi no Michi. A família nasce da adoção, sem limite de filhos e sem exigir casamento.\n\n**Comandos**\n/familia — árvore genealógica\n/adotar jogador — convite de adoção\n/desertar jogador — encerrar adoção\n/casar jogador — pedido de casamento\n/cancelar_casamento pessoa — encerrar vínculo\n/papel — escolher Cônjuge, Marido ou Esposa\n\nOs convites aparecem no canal e só são concluídos com consentimento.");
     const row1=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("social:family:tree:"+ownerId).setLabel("Minha família").setEmoji("🌳").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId("social:family:adopt:"+ownerId).setLabel("Adotar").setEmoji("🌱").setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId("social:family:marry:"+ownerId).setLabel("Casamento").setEmoji("💍").setStyle(ButtonStyle.Primary));
     const row2=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("social:family:unlink:"+ownerId).setLabel("Desvincular adoção").setEmoji("🍃").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("social:family:divorce:"+ownerId).setLabel("Encerrar casamento").setEmoji("💔").setStyle(ButtonStyle.Secondary),back.components[0]);
     return {embeds:[embed],components:[row1,row2]};
@@ -205,7 +205,7 @@ export async function setupSocialInteractions(client, repository) {
     console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
-        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "desertar", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento", "papel_casamento"].includes(interaction.commandName)) {
+        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "desertar", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento", "papel"].includes(interaction.commandName)) {
           return await handleFamilyCommand(interaction, repository);
         }
         if (interaction.commandName === "social") {
@@ -260,8 +260,8 @@ export async function setupSocialInteractions(client, repository) {
           if(act==="adopt"||act==="marry"){
             if(!await repository.getPlayer(actor)||!await repository.getPlayer(other))return interaction.reply({content:"Os dois jogadores precisam ter personagens registrados.",ephemeral:true});
             const marriage=act==="marry",result=marriage?await repository.createMarriageRequest(actor,other):await repository.createAdoptionRequest(actor,other);
-            if(result!=="created")return interaction.reply({content:result==="married"?"Uma das pessoas já possui casamento ativo.":"Já existe um pedido ou vínculo ativo entre vocês.",ephemeral:true});
-            const e=new EmbedBuilder().setColor(marriage?0xE89BB5:0x8DBB83).setTitle(marriage?"💍 Um pedido especial":"🌱 Um novo laço pode nascer").setDescription(marriage?`${interaction.user} gostaria de construir uma história a dois com ${target}. ${target}, você aceita?`:`${interaction.user} deseja adotar ${target} e construir uma família. ${target}, você aceita?`).setFooter({text:marriage?"O registro inicial será Cônjuge; cada pessoa pode mudar seu papel depois.":"A decisão é sua. O vínculo só começa com seu consentimento."});
+            if(result!=="created")return interaction.reply({content:result==="married"?"Uma das pessoas já possui casamento ativo. Encerre o vínculo atual antes de casar novamente.":result==="related"?"Não é possível casar com alguém que já faz parte da sua família.":"Já existe um pedido ou vínculo ativo entre vocês.",ephemeral:true});
+            const e=new EmbedBuilder().setColor(marriage?0xE89BB5:0x8DBB83).setTitle(marriage?"💍 Um pedido especial":"🌱 Um novo laço pode nascer").setDescription(marriage?`${interaction.user} gostaria de construir uma história a dois com ${target}. ${target}, você aceita?`:`${interaction.user} deseja adotar ${target} e construir uma família. ${target}, você aceita?`).setFooter({text:marriage?"O registro inicial será neutro: Cônjuge. Use /papel para alterar entre esposa ou marido.":"A decisão é sua. O vínculo só começa com seu consentimento."});
             const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:${marriage?"marriage":"adoption"}:accept:${owner}:${target.id}`).setLabel("Aceitar").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId(`family:${marriage?"marriage":"adoption"}:decline:${owner}:${target.id}`).setLabel("Recusar").setStyle(ButtonStyle.Secondary));
             await interaction.channel.send({content:target.toString(),embeds:[e],components:[row],allowedMentions:{users:[target.id]}});
             return interaction.update({content:"Convite publicado neste canal. 🌸",components:[]});
