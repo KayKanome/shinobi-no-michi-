@@ -26,7 +26,7 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   const rootUser=await client.users.fetch(ownerId).catch(()=>null);
   const root={id:"discord:"+ownerId,name:player.name,tag:"PERSONAGEM",avatar:rootUser?await avatarData(client,ownerId):null,root:true};
   for(const group of groups) {
-    group.items=group.items.filter(x=>x.id && x.id!=="discord:"+ownerId).slice(0,5);
+    group.items=group.items.filter(x=>x.id && x.id!=="discord:"+ownerId).slice(0,group.label==="SEU NÚCLEO"?4:5);
     for(const item of group.items)item.avatar=await avatarData(client,item.id);
   }
   const W=1600, cardW=240, cardH=214, gap=34, left=55;
@@ -34,15 +34,15 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   const centerX=W/2;
   const allCards=[];
   function card(item,x,y,accent="#A67C43",rootCard=false) {
-    const cx=x+cardW/2, avatarY=y+73, radius=48;
+    const cx=x+cardW/2, avatarY=y+73, radius=48, clipId="avatarClip"+String(x).replace("-","m")+String(y);
     const avatar=item.avatar
-      ? `<image href="${item.avatar}" x="${cx-radius}" y="${avatarY-radius}" width="${radius*2}" height="${radius*2}" clip-path="url(#avatarClip)" preserveAspectRatio="xMidYMid slice"/>`
+      ? `<image href="${item.avatar}" x="${cx-radius}" y="${avatarY-radius}" width="${radius*2}" height="${radius*2}" clip-path="url(#${clipId})" preserveAspectRatio="xMidYMid slice"/>`
       : `<circle cx="${cx}" cy="${avatarY}" r="${radius}" fill="#D9C59C"/><text x="${cx}" y="${avatarY+14}" text-anchor="middle" font-size="43" fill="#725735">忍</text>`;
     return `<g>
       <rect x="${x}" y="${y}" width="${cardW}" height="${cardH}" rx="28" fill="${rootCard?"#F8E9C8":"#F1E4C9"}" stroke="${rootCard?"#D39B42":accent}" stroke-width="${rootCard?8:4}"/>
       <rect x="${x+10}" y="${y+10}" width="${cardW-20}" height="${cardH-20}" rx="21" fill="none" stroke="#C9AD79" stroke-width="1.5" opacity=".8"/>
       <circle cx="${cx}" cy="${avatarY}" r="${radius+7}" fill="#E5D3AE" stroke="${accent}" stroke-width="4"/>
-      <clipPath id="avatarClip"><circle cx="${cx}" cy="${avatarY}" r="${radius}"/></clipPath>
+      <clipPath id="${clipId}"><circle cx="${cx}" cy="${avatarY}" r="${radius}"/></clipPath>
       ${avatar}
       <text x="${cx}" y="${y+151}" text-anchor="middle" font-family="Arial,sans-serif" font-size="25" font-weight="700" fill="#493821">${esc(short(item.name,18))}</text>
       <text x="${cx}" y="${y+183}" text-anchor="middle" font-family="Arial,sans-serif" font-size="17" letter-spacing="1.5" fill="#876C45">${esc(short(item.tag||"FAMÍLIA",22).toUpperCase())}</text>
