@@ -415,7 +415,7 @@ function createPostgresStore() {
         pool.query(`SELECT p.id, p.data->>'name' AS name, CASE p.data->>'familyGender' WHEN 'masculino' THEN 'Pai' WHEN 'feminino' THEN 'Mãe' ELSE 'Responsável' END AS tag
           FROM shinobi_family_adoptions a JOIN shinobi_players p ON p.id=a.parent_id
           WHERE a.child_id=$1 AND a.status='accepted' ORDER BY name`,[userId]),
-        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, CASE p.data->>'familyGender' WHEN 'masculino' THEN 'Padrasto' WHEN 'feminino' THEN 'Madrasta' ELSE 'Responsável' END AS tag
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, CASE p.data->>'familyGender' WHEN 'masculino' THEN 'Pai' WHEN 'feminino' THEN 'Mãe' ELSE 'Responsável' END AS tag
           FROM shinobi_family_adoptions a
           JOIN shinobi_marriages m ON (m.person_a=a.parent_id OR m.person_b=a.parent_id) AND m.status='accepted'
           JOIN shinobi_players p ON p.id=CASE WHEN m.person_a=a.parent_id THEN m.person_b ELSE m.person_a END
