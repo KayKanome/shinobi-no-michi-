@@ -149,7 +149,7 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const embed = new EmbedBuilder()
       .setColor(0xE89BB5)
       .setTitle("🌳 Família")
-      .setDescription("O sistema de família funciona por adoção. Não há limite de filhos e não é necessário estar casado para ser pai ou mãe.\n\n**/familia** — consultar sua família e pedidos recebidos.\n**/adotar jogador** — enviar um pedido de adoção.\n**/aceitar_adocao responsavel** — aceitar um pedido.\n**/recusar_adocao responsavel** — recusar um pedido.\n\nA adoção só é concluída com a aceitação da outra pessoa. O certificado da loja será conectado depois.");
+      .setDescription("O sistema de família funciona por adoção. Não há limite de filhos e não é necessário estar casado para ser pai ou mãe.\n\n**/familia** — consultar sua família e pedidos recebidos.\n**/adotar jogador** — enviar um pedido de adoção.\n**/aceitar_adocao responsavel** — aceitar um pedido.\n**/recusar_adocao responsavel** — recusar um pedido.\n**/desertar jogador** — encerrar um vínculo de adoção, com confirmação.\n\nA adoção só é concluída com a aceitação da outra pessoa. O certificado da loja será conectado depois.");
     return { embeds: [embed], components: [back] };
   }
 
