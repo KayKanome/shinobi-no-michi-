@@ -322,6 +322,29 @@ function createPostgresStore() {
           CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled'))
         `);
         await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_marriages (
+            id BIGSERIAL PRIMARY KEY,
+            person_a TEXT NOT NULL,
+            person_b TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            responded_at TIMESTAMPTZ,
+            CHECK (person_a <> person_b)
+          )
+        `);
+        await pool.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS shinobi_marriages_active_pair
+          ON shinobi_marriages (person_a, person_b) WHERE status IN ('pending', 'accepted')
+        `);
+        await pool.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS shinobi_marriages_one_active_a
+          ON shinobi_marriages (person_a) WHERE status = 'accepted'
+        `);
+        await pool.query(`
+          CREATE UNIQUE INDEX IF NOT EXISTS shinobi_marriages_one_active_b
+          ON shinobi_marriages (person_b) WHERE status = 'accepted'
+        `);
+        await pool.query(`
           CREATE UNIQUE INDEX IF NOT EXISTS shinobi_family_active_pair
           ON shinobi_family_adoptions (parent_id, child_id)
           WHERE status IN ('pending', 'accepted')
@@ -432,12 +455,38 @@ function createPostgresStore() {
           [userId]
         )
       ]);
+      const [spouse, auntsUncles, cousins, niecesNephews] = await Promise.all([
+        pool.query(`SELECT p.data->>'name' AS name FROM shinobi_marriages m
+          JOIN shinobi_players p ON p.id = CASE WHEN m.person_a = $1 THEN m.person_b ELSE m.person_a END
+          WHERE (m.person_a = $1 OR m.person_b = $1) AND m.status = 'accepted'`, [userId]),
+        pool.query(`SELECT DISTINCT p.data->>'name' AS name
+          FROM shinobi_family_adoptions mine
+          JOIN shinobi_family_adoptions pl ON pl.child_id = mine.parent_id AND pl.status = 'accepted'
+          JOIN shinobi_family_adoptions al ON al.parent_id = pl.parent_id AND al.status = 'accepted'
+          JOIN shinobi_players p ON p.id = al.child_id
+          WHERE mine.child_id = $1 AND mine.status = 'accepted' AND pl.child_id <> al.child_id
+          ORDER BY name`, [userId]),
+        pool.query(`SELECT DISTINCT p.data->>'name' AS name
+          FROM shinobi_family_adoptions mine
+          JOIN shinobi_family_adoptions pl ON pl.child_id = mine.parent_id AND pl.status = 'accepted'
+          JOIN shinobi_family_adoptions al ON al.parent_id = pl.parent_id AND al.status = 'accepted'
+          JOIN shinobi_family_adoptions cl ON cl.parent_id = al.child_id AND cl.status = 'accepted'
+          JOIN shinobi_players p ON p.id = cl.child_id
+          WHERE mine.child_id = $1 AND mine.status = 'accepted' AND pl.child_id <> al.child_id
+          ORDER BY name`, [userId]),
+        pool.query(`SELECT DISTINCT p.data->>'name' AS name
+          FROM shinobi_family_adoptions mine
+          JOIN shinobi_family_adoptions sl ON sl.parent_id = mine.parent_id AND sl.status = 'accepted'
+          JOIN shinobi_family_adoptions nl ON nl.parent_id = sl.child_id AND nl.status = 'accepted'
+          JOIN shinobi_players p ON p.id = nl.child_id
+          WHERE mine.child_id = $1 AND mine.status = 'accepted' AND sl.child_id <> $1
+          ORDER BY name`, [userId])
+      ]);
       return {
-        parents: parents.rows,
-        children: children.rows,
-        siblings: siblings.rows,
-        grandparents: grandparents.rows,
-        grandchildren: grandchildren.rows
+        parents: parents.rows, children: children.rows, siblings: siblings.rows,
+        grandparents: grandparents.rows, grandchildren: grandchildren.rows,
+        spouse: spouse.rows, auntsUncles: auntsUncles.rows,
+        cousins: cousins.rows, niecesNephews: niecesNephews.rows
       };
     },
     async getPendingAdoptions(childId) {
@@ -462,7 +511,7 @@ function createPostgresStore() {
          SET status = 'cancelled', responded_at = NOW()
          WHERE status IN ('pending', 'accepted')
            AND (
-             (status = 'pending' AND parent_id = $1 AND child_id = $2)
+             (status = 'pending' AND ((parent_id = $1 AND child_id = $2) OR (parent_id = $2 AND child_id = $1)))
              OR
              (status = 'accepted' AND (
                (parent_id = $1 AND child_id = $2)
@@ -472,6 +521,58 @@ function createPostgresStore() {
         [actorId, otherId]
       );
       return result.rowCount > 0;
+    },
+    async createMarriageRequest(requesterId, targetId) {
+      await initialize();
+      const [a, b] = [requesterId, targetId].sort();
+      const occupied = await pool.query(`SELECT 1 FROM shinobi_marriages WHERE status='accepted'
+        AND (person_a IN ($1,$2) OR person_b IN ($1,$2)) LIMIT 1`, [a,b]);
+      if (occupied.rowCount) return "married";
+      const result = await pool.query(`INSERT INTO shinobi_marriages (person_a,person_b,status)
+        VALUES ($1,$2,'pending') ON CONFLICT DO NOTHING RETURNING id`, [a,b]);
+      return result.rowCount ? "created" : "duplicate";
+    },
+    async getPendingMarriages(userId) {
+      await initialize();
+      const result = await pool.query(`SELECT CASE WHEN person_a=$1 THEN person_b ELSE person_a END AS other_id
+        FROM shinobi_marriages WHERE (person_a=$1 OR person_b=$1) AND status='pending'`, [userId]);
+      if (!result.rowCount) return [];
+      const players = await pool.query(`SELECT id,data->>'name' AS name FROM shinobi_players WHERE id=ANY($1::text[])`,
+        [result.rows.map(x=>x.other_id)]);
+      return players.rows.map(x=>({name:x.name,discordId:x.id.replace(/^discord:/,"")}));
+    },
+    async declineMarriageRequest(proposerId, recipientId) {
+      await initialize();
+      const [a,b]=[proposerId,recipientId].sort();
+      const r=await pool.query(`UPDATE shinobi_marriages SET status='declined',responded_at=NOW()
+        WHERE person_a=$1 AND person_b=$2 AND status='pending'`,[a,b]);
+      return r.rowCount===1;
+    },
+    async acceptMarriageRequest(proposerId, recipientId) {
+      await initialize();
+      const [a,b]=[proposerId,recipientId].sort();
+      const c=await pool.connect();
+      try {
+        await c.query("BEGIN");
+        const req=await c.query(`SELECT id FROM shinobi_marriages WHERE person_a=$1 AND person_b=$2 AND status='pending' FOR UPDATE`,[a,b]);
+        if(!req.rowCount){await c.query("ROLLBACK");return "missing";}
+        const occupied=await c.query(`SELECT 1 FROM shinobi_marriages WHERE status='accepted'
+          AND (person_a IN ($1,$2) OR person_b IN ($1,$2)) LIMIT 1`,[a,b]);
+        if(occupied.rowCount){await c.query("ROLLBACK");return "married";}
+        await c.query(`UPDATE shinobi_marriages SET status='accepted',responded_at=NOW() WHERE id=$1`,[req.rows[0].id]);
+        await c.query("COMMIT"); return "accepted";
+      } catch(e) {
+        await c.query("ROLLBACK").catch(()=>{});
+        if(e.code==="23505") return "married";
+        throw e;
+      } finally {c.release();}
+    },
+    async cancelMarriage(actorId, otherId) {
+      await initialize();
+      const [a,b]=[actorId,otherId].sort();
+      const r=await pool.query(`UPDATE shinobi_marriages SET status='cancelled',responded_at=NOW()
+        WHERE person_a=$1 AND person_b=$2 AND status IN ('pending','accepted')`,[a,b]);
+      return r.rowCount>0;
     },
     async declineAdoptionRequest(parentId, childId) {
       await initialize();
