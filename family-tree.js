@@ -18,9 +18,9 @@ async function avatarData(client, id) {
 export async function renderFamilyTree({player,family,ownerId,client}) {
   const groups=[
     {label:"ANCESTRAIS",subtitle:"Avós",items:family.grandparents||[],color:"#A67C43"},
-    {label:"GERAÇÃO ANTERIOR",subtitle:"Responsáveis",items:family.parents||[],color:"#78956A"},
+    {label:"GERAÇÃO ANTERIOR",subtitle:"Responsáveis",items:(family.parents||[]).map(x=>({...x,tag:x.tag||"Responsável"})),color:"#78956A"},
     {label:"SEU NÚCLEO",subtitle:"Irmãos e cônjuge",items:[...(family.siblings||[]).slice(0,2).map(x=>({...x,tag:"Irmão"})),...(family.spouse||[]).slice(0,1).map(x=>({...x,tag:x.role||"Cônjuge"}))],color:"#B88745"},
-    {label:"PRÓXIMA GERAÇÃO",subtitle:"Filhos",items:family.children||[],color:"#78956A"},
+    {label:"PRÓXIMA GERAÇÃO",subtitle:"Filhos",items:(family.children||[]).map(x=>({...x,tag:x.tag||"Filho(a)"})),color:"#78956A"},
     {label:"RAMOS DA FAMÍLIA",subtitle:"Tios, primos e sobrinhos",items:[...(family.siblings||[]).slice(2).map(x=>({...x,tag:"Irmão"})),...(family.auntsUncles||[]).map(x=>({...x,tag:"Tio/tia"})),...(family.cousins||[]).map(x=>({...x,tag:"Primo(a)"})),...(family.niecesNephews||[]).map(x=>({...x,tag:"Sobrinho(a)"})),...(family.grandchildren||[]).map(x=>({...x,tag:"Neto(a)"}))],color:"#A67C43"}
   ];
   const rootUser=await client.users.fetch(ownerId).catch(()=>null);
