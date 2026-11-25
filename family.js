@@ -13,7 +13,7 @@ export function familyCommands() {
     new SlashCommandBuilder().setName("aceitar_casamento").setDescription("Aceite um pedido de casamento.").addUserOption(o => o.setName("pessoa").setDescription("Quem enviou o pedido.").setRequired(true)),
     new SlashCommandBuilder().setName("recusar_casamento").setDescription("Recuse um pedido de casamento.").addUserOption(o => o.setName("pessoa").setDescription("Quem enviou o pedido.").setRequired(true)),
     new SlashCommandBuilder().setName("cancelar_casamento").setDescription("Encerre um casamento ou cancele um pedido.").addUserOption(o => o.setName("pessoa").setDescription("A outra pessoa envolvida.").setRequired(true)),
-    new SlashCommandBuilder().setName("papel_casamento").setDescription("Altere como deseja aparecer no casamento.").addStringOption(o => o.setName("papel").setDescription("Seu papel").setRequired(true).addChoices({name:"Cônjuge",value:"conjuge"},{name:"Marido",value:"marido"},{name:"Esposa",value:"esposa"}))
+    new SlashCommandBuilder().setName("papel").setDescription("Altere como deseja aparecer no casamento.").addStringOption(o => o.setName("papel").setDescription("Seu papel").setRequired(true).addChoices({name:"Cônjuge",value:"conjuge"},{name:"Marido",value:"marido"},{name:"Esposa",value:"esposa"}))
   ];
 }
 const validOther = (user, interaction) => user && !user.bot && user.id !== interaction.user.id;
@@ -82,10 +82,11 @@ export async function handleFamilyCommand(interaction, repository) {
     if (!validOther(target, interaction)) return interaction.reply({ content: "Escolha outra pessoa para pedir em casamento.", ephemeral: true });
     if (!await repository.getPlayer(actorId) || !await repository.getPlayer(`discord:${target.id}`)) return interaction.reply({ content: "Os dois jogadores precisam ter personagens registrados.", ephemeral: true });
     const result = await repository.createMarriageRequest(actorId, `discord:${target.id}`);
-    if (result === "married") return interaction.reply({ content: "Uma das pessoas já possui casamento ativo.", ephemeral: true });
+    if (result === "married") return interaction.reply({ content: "Uma das pessoas já possui casamento ativo. Para casar novamente, encerre o vínculo atual primeiro.", ephemeral: true });
+    if (result === "related") return interaction.reply({ content: "Não é possível casar com alguém que já faz parte da sua família ou possui parentesco registrado com você.", ephemeral: true });
     if (result !== "created") return interaction.reply({ content: "Já existe um pedido de casamento entre vocês.", ephemeral: true });
     await interaction.reply({content:"💍 Pedido publicado neste canal.",ephemeral:true});
-    const embed=new EmbedBuilder().setColor(0xE89BB5).setTitle("💍 Um pedido especial").setDescription(`${interaction.user} gostaria de construir uma história a dois com ${target} no Shinobi no Michi. ${target}, você aceita?`).setFooter({text:"O registro inicial será neutro: Cônjuge. Cada pessoa poderá mudar seu papel depois."});
+    const embed=new EmbedBuilder().setColor(0xE89BB5).setTitle("💍 Um pedido especial").setDescription(`${interaction.user} gostaria de construir uma história a dois com ${target} no Shinobi no Michi. ${target}, você aceita?`).setFooter({text:"O registro inicial será neutro: Cônjuge. Use /papel para alterar entre esposa ou marido quando quiser."});
     const row=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:marriage:accept:${interaction.user.id}:${target.id}`).setLabel("Aceitar").setEmoji("💗").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId(`family:marriage:decline:${interaction.user.id}:${target.id}`).setLabel("Recusar").setEmoji("🍃").setStyle(ButtonStyle.Secondary));
     await interaction.channel.send({content:target.toString(),embeds:[embed],components:[row],allowedMentions:{users:[target.id]}});
     return;
@@ -102,11 +103,12 @@ export async function handleFamilyCommand(interaction, repository) {
     const result = await repository.acceptMarriageRequest(proposerId, actorId);
     if (result === "missing") return interaction.reply({ content: "Não encontrei um pedido pendente dessa pessoa.", ephemeral: true });
     if (result === "married") return interaction.reply({ content: "Uma das pessoas já possui casamento ativo.", ephemeral: true });
+    if (result === "related") return interaction.reply({ content: "O casamento não pode ser confirmado porque existe parentesco registrado entre vocês.", ephemeral: true });
     return interaction.reply({ content: `💍 Casamento confirmado! ${interaction.user.username} e ${proposer.username} agora estão casados no Shinobi no Michi.`, ephemeral: false });
   }
-  if (command === "papel_casamento") {
+  if (command === "papel") {
     const role=interaction.options.getString("papel"),ok=await repository.setMarriageRole(actorId,role);
-    return interaction.reply({content:ok?`🌸 Seu papel agora está registrado como **${role==="conjuge"?"Cônjuge":role}**.`:"Você precisa ter um casamento ativo para alterar seu papel.",ephemeral:true});
+    return interaction.reply({content:ok?`🌸 Seu papel agora está registrado como **${role==="conjuge"?"Cônjuge":role}**. As árvores da família serão atualizadas.`:"Você precisa ter um casamento ativo para alterar seu papel.",ephemeral:true});
   }
   if (command === "cancelar_casamento") {
     const other = interaction.options.getUser("pessoa");
