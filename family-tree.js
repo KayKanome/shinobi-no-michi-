@@ -26,13 +26,19 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   const rootUser=await client.users.fetch(ownerId).catch(()=>null);
   const root={id:"discord:"+ownerId,name:player.name,tag:"PERSONAGEM",avatar:rootUser?await avatarData(client,ownerId):null,root:true};
   for(const group of groups) {
-    group.items=group.items.filter(x=>x.id && x.id!=="discord:"+ownerId).slice(0,group.label==="SEU NÚCLEO"?4:5);
+    group.items=group.items.filter(x=>x.id && x.id!=="discord:"+ownerId);
     await Promise.all(group.items.map(async item=>{item.avatar=await avatarData(client,item.id);}));
   }
-  const W=1600, cardW=240, cardH=214, gap=34, left=55;
-  const rowY=[300,610,920,1230,1540];
-  const centerX=W/2;
-  const allCards=[];
+  const W=1600, cardW=240, cardH=214, gap=34;
+  let nextY=320;
+  const layouts=groups.map((group,i)=>{
+    const chunks=i===2?[group.items]:Array.from({length:Math.ceil(group.items.length/5)},(_,j)=>group.items.slice(j*5,(j+1)*5));
+    const safeChunks=chunks.length?chunks:[[]];
+    const layout={group,y:nextY,chunks:safeChunks,index:i};
+    nextY+=safeChunks.length*270+75;
+    return layout;
+  });
+  const H=nextY+100;
   function card(item,x,y,accent="#A67C43",rootCard=false) {
     const cx=x+cardW/2, avatarY=y+73, radius=48, clipId="avatarClip"+String(x).replace("-","m")+String(y);
     const avatar=item.avatar
@@ -49,59 +55,55 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
       ${rootCard?`<path d="M ${x+cardW/2-18} ${y-14} l18 -18 18 18" fill="#D39B42"/>`:""}
     </g>`;
   }
-  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="1900" viewBox="0 0 ${W} 1900">
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
     <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F8F0DC"/><stop offset=".5" stop-color="#E8D7B4"/><stop offset="1" stop-color="#D8C49B"/></linearGradient>
-    <radialGradient id="glow"><stop stop-color="#FFF9E9"/><stop offset="1" stop-color="#D9C49A"/></radialGradient>
     <pattern id="grain" width="90" height="90" patternUnits="userSpaceOnUse"><path d="M0 45 Q22 20 45 45 T90 45 M45 0 Q20 22 45 45 T45 90" fill="none" stroke="#A98C5E" stroke-opacity=".10" stroke-width="2"/></pattern>
   </defs>
-  <rect width="1600" height="1900" fill="url(#paper)"/><rect width="1600" height="1900" fill="url(#grain)"/>
-  <rect x="28" y="28" width="1544" height="1844" rx="38" fill="none" stroke="#9B7744" stroke-width="8"/>
-  <rect x="47" y="47" width="1506" height="1806" rx="30" fill="none" stroke="#C2A36D" stroke-width="2"/>
-  <g fill="none" stroke="#9B7744" stroke-width="5" opacity=".8"><path d="M80 180 Q80 90 180 90 M1520 180 Q1520 90 1420 90 M80 1720 Q80 1810 180 1810 M1520 1720 Q1520 1810 1420 1810"/></g>
+  <rect width="${W}" height="${H}" fill="url(#paper)"/><rect width="${W}" height="${H}" fill="url(#grain)"/>
+  <rect x="28" y="28" width="1544" height="${H-56}" rx="38" fill="none" stroke="#9B7744" stroke-width="8"/>
+  <rect x="47" y="47" width="1506" height="${H-94}" rx="30" fill="none" stroke="#C2A36D" stroke-width="2"/>
+  <g fill="none" stroke="#9B7744" stroke-width="5" opacity=".8"><path d="M80 180 Q80 90 180 90 M1520 180 Q1520 90 1420 90 M80 ${H-180} Q80 ${H-90} 180 ${H-90} M1520 ${H-180} Q1520 ${H-90} 1420 ${H-90}"/></g>
   <text x="800" y="126" text-anchor="middle" font-family="Georgia,serif" font-size="54" font-weight="bold" letter-spacing="5" fill="#59442B">ÁRVORE GENEALÓGICA</text>
   <text x="800" y="177" text-anchor="middle" font-family="Georgia,serif" font-size="27" letter-spacing="3" fill="#98774A">SHINOBI NO MICHI • CLÃ &amp; LEGADO</text>
   <path d="M480 218 Q800 260 1120 218" stroke="#B18A51" stroke-width="3" fill="none"/>
   <g fill="#9A7848"><circle cx="460" cy="218" r="7"/><circle cx="1140" cy="218" r="7"/><path d="M800 202 l13 16 -13 16 -13 -16z"/></g>
   <text x="800" y="266" text-anchor="middle" font-family="Georgia,serif" font-size="33" fill="#60492D">${esc(player.name)}</text>
-  <g stroke="#9D8056" stroke-width="8" fill="none" stroke-linecap="round" opacity=".75">
-    <path d="M800 285 V1790"/>
-    <path d="M800 430 H800 M800 740 H800 M800 1050 H800 M800 1360 H800 M800 1670 H800"/>
-    <path d="M800 430 H800 M800 740 H800 M800 1050 H800 M800 1360 H800 M800 1670 H800"/>
-  </g>`;
-  const labels=groups.map((g,i)=>`<text x="95" y="${rowY[i]-35}" font-family="Arial,sans-serif" font-size="21" font-weight="bold" letter-spacing="3" fill="${g.color}">${g.label}</text>`).join("");
-  svg+=labels;
-  for(let i=0;i<groups.length;i++){
-    const g=groups[i],y=rowY[i],items=g.items;
-    let placements=[];
-    if(i===2){
-      const rootX=(W-cardW)/2;
-      const siblings=items.filter(x=>x.tag==="Irmão");
-      const spouses=items.filter(x=>x.tag!=="Irmão");
+  <path d="M800 285 V${H-115}" stroke="#9D8056" stroke-width="8" fill="none" stroke-linecap="round" opacity=".75"/>
+  `;
+  for(const layout of layouts){
+    const {group:g,y,index}=layout;
+    svg+=`<text x="95" y="${y-35}" font-family="Arial,sans-serif" font-size="21" font-weight="bold" letter-spacing="3" fill="${g.color}">${g.label}</text>`;
+    if(index===2){
+      const rootX=(W-cardW)/2,placements=[];
+      const siblings=g.items.filter(x=>x.tag==="Irmão").slice(0,2);
+      const spouses=g.items.filter(x=>x.tag!=="Irmão").slice(0,1);
       siblings.forEach((item,j)=>placements.push({item,x:rootX-(j+1)*(cardW+gap)}));
       placements.push({item:root,x:rootX});
       spouses.forEach((item,j)=>placements.push({item,x:rootX+(j+1)*(cardW+gap)}));
       placements.sort((a,b)=>a.x-b.x);
+      drawPlacements(placements,y,g.color);
     } else {
-      const total=items.length*cardW+(items.length-1)*gap;
-      const start=(W-total)/2;
-      items.forEach((item,j)=>placements.push({item,x:start+j*(cardW+gap)}));
+      layout.chunks.forEach((items,row)=>{
+        const rowY=y+row*270;
+        if(!items.length){
+          svg+=`<text x="800" y="${rowY+105}" text-anchor="middle" font-family="Georgia,serif" font-size="25" font-style="italic" fill="#9A8059">Este ramo ainda aguarda novos laços</text>`;
+          return;
+        }
+        const total=items.length*cardW+(items.length-1)*gap,start=(W-total)/2;
+        drawPlacements(items.map((item,j)=>({item,x:start+j*(cardW+gap)})),rowY,g.color);
+      });
     }
-    if(!placements.length){
-      svg+=`<text x="800" y="${y+105}" text-anchor="middle" font-family="Georgia,serif" font-size="25" font-style="italic" fill="#9A8059">Este ramo ainda aguarda novos laços</text>`;
-      continue;
-    }
+  }
+  function drawPlacements(placements,y,color){
     const centers=[];
-    placements.forEach(({item,x})=>{
-      centers.push(x+cardW/2);
-      svg+=card(item,x,y,g.color,!!item.root);
-    });
+    placements.forEach(({item,x})=>{centers.push(x+cardW/2);svg+=card(item,x,y,color,!!item.root);});
     const lineY=y-26;
-    if(cards.length>1)svg+=`<path d="M ${centers[0]} ${lineY} H ${centers[centers.length-1]}" stroke="#9D8056" stroke-width="6" fill="none" stroke-linecap="round"/>`;
+    if(placements.length>1)svg+=`<path d="M ${centers[0]} ${lineY} H ${centers[centers.length-1]}" stroke="#9D8056" stroke-width="6" fill="none" stroke-linecap="round"/>`;
     centers.forEach(cx=>svg+=`<path d="M ${cx} ${lineY} V ${y-4}" stroke="#9D8056" stroke-width="6" fill="none"/><circle cx="${cx}" cy="${lineY}" r="8" fill="#B48A4F"/>`);
   }
-  svg+=`<g fill="#8A6A3F" opacity=".8"><path d="M150 1785 q35 -42 70 0 q-35 -12 -70 0 M1380 1785 q35 -42 70 0 q-35 -12 -70 0"/></g>
-  <text x="800" y="1810" text-anchor="middle" font-family="Georgia,serif" font-size="22" fill="#765B37">Cada vínculo é uma escolha. Cada geração, um novo capítulo.</text>
+  svg+=`<g fill="#8A6A3F" opacity=".8"><path d="M150 ${H-115} q35 -42 70 0 q-35 -12 -70 0 M1380 ${H-115} q35 -42 70 0 q-35 -12 -70 0"/></g>
+  <text x="800" y="${H-90}" text-anchor="middle" font-family="Georgia,serif" font-size="22" fill="#765B37">Cada vínculo é uma escolha. Cada geração, um novo capítulo.</text>
   </svg>`;
   return sharp(Buffer.from(svg)).png({compressionLevel:9}).toBuffer();
 }
