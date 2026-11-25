@@ -411,86 +411,76 @@ function createPostgresStore() {
     },
     async getFamily(userId) {
       await initialize();
-      const [parents, children, siblings, grandparents, grandchildren] = await Promise.all([
-        pool.query(
-          `SELECT p.id AS id, p.data->>'name' AS name
-           FROM shinobi_family_adoptions a
-           JOIN shinobi_players p ON p.id = a.parent_id
-           WHERE a.child_id = $1 AND a.status = 'accepted'
-           ORDER BY a.responded_at`,
-          [userId]
-        ),
-        pool.query(
-          `SELECT p.id AS id, p.data->>'name' AS name
-           FROM shinobi_family_adoptions a
-           JOIN shinobi_players p ON p.id = a.child_id
-           WHERE a.parent_id = $1 AND a.status = 'accepted'
-           ORDER BY a.responded_at`,
-          [userId]
-        ),
-        pool.query(
-          `SELECT DISTINCT s.id AS id, s.data->>'name' AS name
-           FROM shinobi_family_adoptions mine
-           JOIN shinobi_family_adoptions shared ON shared.parent_id = mine.parent_id
-           JOIN shinobi_players s ON s.id = shared.child_id
-           WHERE mine.child_id = $1 AND mine.status = 'accepted'
-             AND shared.status = 'accepted' AND shared.child_id <> $1
-           ORDER BY name`,
-          [userId]
-        ),
-        pool.query(
-          `SELECT DISTINCT g.id AS id, g.data->>'name' AS name
-           FROM shinobi_family_adoptions mine
-           JOIN shinobi_family_adoptions middle ON middle.child_id = mine.parent_id
-           JOIN shinobi_players g ON g.id = middle.parent_id
-           WHERE mine.child_id = $1 AND mine.status = 'accepted'
-             AND middle.status = 'accepted'
-           ORDER BY name`,
-          [userId]
-        ),
-        pool.query(
-          `SELECT DISTINCT g.id AS id, g.data->>'name' AS name
-           FROM shinobi_family_adoptions mine
-           JOIN shinobi_family_adoptions nextgen ON nextgen.parent_id = mine.child_id
-           JOIN shinobi_players g ON g.id = nextgen.child_id
-           WHERE mine.parent_id = $1 AND mine.status = 'accepted'
-             AND nextgen.status = 'accepted'
-           ORDER BY name`,
-          [userId]
-        )
+      const [directParents, stepParents, directChildren, stepChildren, siblings, grandparents, grandchildren] = await Promise.all([
+        pool.query(`SELECT p.id, p.data->>'name' AS name, 'Responsável' AS tag
+          FROM shinobi_family_adoptions a JOIN shinobi_players p ON p.id=a.parent_id
+          WHERE a.child_id=$1 AND a.status='accepted' ORDER BY name`,[userId]),
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, 'Padrasto/madrasta' AS tag
+          FROM shinobi_family_adoptions a
+          JOIN shinobi_marriages m ON (m.person_a=a.parent_id OR m.person_b=a.parent_id) AND m.status='accepted'
+          JOIN shinobi_players p ON p.id=CASE WHEN m.person_a=a.parent_id THEN m.person_b ELSE m.person_a END
+          WHERE a.child_id=$1 AND a.status='accepted' AND p.id<>$1
+            AND NOT EXISTS (SELECT 1 FROM shinobi_family_adoptions direct WHERE direct.child_id=$1 AND direct.parent_id=p.id AND direct.status='accepted')
+          ORDER BY name`,[userId]),
+        pool.query(`SELECT p.id, p.data->>'name' AS name, 'Filho(a)' AS tag
+          FROM shinobi_family_adoptions a JOIN shinobi_players p ON p.id=a.child_id
+          WHERE a.parent_id=$1 AND a.status='accepted' ORDER BY name`,[userId]),
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name, 'Enteado(a)' AS tag
+          FROM shinobi_marriages m
+          JOIN shinobi_family_adoptions a ON a.parent_id=CASE WHEN m.person_a=$1 THEN m.person_b ELSE m.person_a END AND a.status='accepted'
+          JOIN shinobi_players p ON p.id=a.child_id
+          WHERE (m.person_a=$1 OR m.person_b=$1) AND m.status='accepted'
+            AND a.child_id<>$1
+            AND NOT EXISTS (SELECT 1 FROM shinobi_family_adoptions direct WHERE direct.parent_id=$1 AND direct.child_id=a.child_id AND direct.status='accepted')
+          ORDER BY name`,[userId]),
+        pool.query(`SELECT DISTINCT s.id, s.data->>'name' AS name
+          FROM shinobi_family_adoptions mine
+          JOIN shinobi_family_adoptions shared ON shared.parent_id=mine.parent_id
+          JOIN shinobi_players s ON s.id=shared.child_id
+          WHERE mine.child_id=$1 AND mine.status='accepted' AND shared.status='accepted' AND shared.child_id<>$1
+          ORDER BY name`,[userId]),
+        pool.query(`SELECT DISTINCT g.id, g.data->>'name' AS name
+          FROM shinobi_family_adoptions mine
+          JOIN shinobi_family_adoptions middle ON middle.child_id=mine.parent_id AND middle.status='accepted'
+          JOIN shinobi_players g ON g.id=middle.parent_id
+          WHERE mine.child_id=$1 AND mine.status='accepted' ORDER BY name`,[userId]),
+        pool.query(`SELECT DISTINCT g.id, g.data->>'name' AS name
+          FROM shinobi_family_adoptions mine
+          JOIN shinobi_family_adoptions nextgen ON nextgen.parent_id=mine.child_id AND nextgen.status='accepted'
+          JOIN shinobi_players g ON g.id=nextgen.child_id
+          WHERE mine.parent_id=$1 AND mine.status='accepted' ORDER BY name`,[userId])
       ]);
       const [spouse, auntsUncles, cousins, niecesNephews] = await Promise.all([
-        pool.query(`SELECT p.id AS id, p.data->>'name' AS name, CASE WHEN m.person_a=$1 THEN m.role_b ELSE m.role_a END AS role FROM shinobi_marriages m
-          JOIN shinobi_players p ON p.id = CASE WHEN m.person_a = $1 THEN m.person_b ELSE m.person_a END
-          WHERE (m.person_a = $1 OR m.person_b = $1) AND m.status = 'accepted'`, [userId]),
-        pool.query(`SELECT DISTINCT p.id AS id, p.data->>'name' AS name
+        pool.query(`SELECT p.id, p.data->>'name' AS name,
+          CASE WHEN m.person_a=$1 THEN m.role_b ELSE m.role_a END AS role
+          FROM shinobi_marriages m JOIN shinobi_players p
+          ON p.id=CASE WHEN m.person_a=$1 THEN m.person_b ELSE m.person_a END
+          WHERE (m.person_a=$1 OR m.person_b=$1) AND m.status='accepted'`,[userId]),
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name
           FROM shinobi_family_adoptions mine
-          JOIN shinobi_family_adoptions pl ON pl.child_id = mine.parent_id AND pl.status = 'accepted'
-          JOIN shinobi_family_adoptions al ON al.parent_id = pl.parent_id AND al.status = 'accepted'
-          JOIN shinobi_players p ON p.id = al.child_id
-          WHERE mine.child_id = $1 AND mine.status = 'accepted' AND pl.child_id <> al.child_id
-          ORDER BY name`, [userId]),
-        pool.query(`SELECT DISTINCT p.id AS id, p.data->>'name' AS name
+          JOIN shinobi_family_adoptions pl ON pl.child_id=mine.parent_id AND pl.status='accepted'
+          JOIN shinobi_family_adoptions al ON al.parent_id=pl.parent_id AND al.status='accepted'
+          JOIN shinobi_players p ON p.id=al.child_id
+          WHERE mine.child_id=$1 AND mine.status='accepted' AND pl.child_id<>al.child_id ORDER BY name`,[userId]),
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name
           FROM shinobi_family_adoptions mine
-          JOIN shinobi_family_adoptions pl ON pl.child_id = mine.parent_id AND pl.status = 'accepted'
-          JOIN shinobi_family_adoptions al ON al.parent_id = pl.parent_id AND al.status = 'accepted'
-          JOIN shinobi_family_adoptions cl ON cl.parent_id = al.child_id AND cl.status = 'accepted'
-          JOIN shinobi_players p ON p.id = cl.child_id
-          WHERE mine.child_id = $1 AND mine.status = 'accepted' AND pl.child_id <> al.child_id
-          ORDER BY name`, [userId]),
-        pool.query(`SELECT DISTINCT p.id AS id, p.data->>'name' AS name
+          JOIN shinobi_family_adoptions pl ON pl.child_id=mine.parent_id AND pl.status='accepted'
+          JOIN shinobi_family_adoptions al ON al.parent_id=pl.parent_id AND al.status='accepted'
+          JOIN shinobi_family_adoptions cl ON cl.parent_id=al.child_id AND cl.status='accepted'
+          JOIN shinobi_players p ON p.id=cl.child_id
+          WHERE mine.child_id=$1 AND mine.status='accepted' AND pl.child_id<>al.child_id ORDER BY name`,[userId]),
+        pool.query(`SELECT DISTINCT p.id, p.data->>'name' AS name
           FROM shinobi_family_adoptions mine
-          JOIN shinobi_family_adoptions sl ON sl.parent_id = mine.parent_id AND sl.status = 'accepted'
-          JOIN shinobi_family_adoptions nl ON nl.parent_id = sl.child_id AND nl.status = 'accepted'
-          JOIN shinobi_players p ON p.id = nl.child_id
-          WHERE mine.child_id = $1 AND mine.status = 'accepted' AND sl.child_id <> $1
-          ORDER BY name`, [userId])
+          JOIN shinobi_family_adoptions sl ON sl.parent_id=mine.parent_id AND sl.status='accepted'
+          JOIN shinobi_family_adoptions nl ON nl.parent_id=sl.child_id AND nl.status='accepted'
+          JOIN shinobi_players p ON p.id=nl.child_id
+          WHERE mine.child_id=$1 AND mine.status='accepted' AND sl.child_id<>$1 ORDER BY name`,[userId])
       ]);
+      const merge=(a,b)=>[...new Map([...a.rows,...b.rows].map(x=>[x.id,x])).values()];
       return {
-        parents: parents.rows, children: children.rows, siblings: siblings.rows,
-        grandparents: grandparents.rows, grandchildren: grandchildren.rows,
-        spouse: spouse.rows, auntsUncles: auntsUncles.rows,
-        cousins: cousins.rows, niecesNephews: niecesNephews.rows
+        parents:merge(directParents,stepParents), children:merge(directChildren,stepChildren),
+        siblings:siblings.rows, grandparents:grandparents.rows, grandchildren:grandchildren.rows,
+        spouse:spouse.rows, auntsUncles:auntsUncles.rows, cousins:cousins.rows, niecesNephews:niecesNephews.rows
       };
     },
     async getPendingAdoptions(childId) {
@@ -529,6 +519,17 @@ function createPostgresStore() {
     async createMarriageRequest(requesterId, targetId) {
       await initialize();
       const [a, b] = [requesterId, targetId].sort();
+      const related = await pool.query(`WITH RECURSIVE ancestors(person_id,ancestor_id) AS (
+        SELECT child_id,parent_id FROM shinobi_family_adoptions WHERE status='accepted'
+        UNION
+        SELECT x.person_id,f.parent_id FROM ancestors x
+        JOIN shinobi_family_adoptions f ON f.child_id=x.ancestor_id AND f.status='accepted'
+      )
+      SELECT 1 FROM ancestors WHERE (person_id=$1 AND ancestor_id=$2) OR (person_id=$2 AND ancestor_id=$1)
+      UNION
+      SELECT 1 FROM ancestors x JOIN ancestors y ON x.ancestor_id=y.ancestor_id
+      WHERE x.person_id=$1 AND y.person_id=$2 LIMIT 1`,[a,b]);
+      if (related.rowCount) return "related";
       const occupied = await pool.query(`SELECT 1 FROM shinobi_marriages WHERE status='accepted'
         AND (person_a IN ($1,$2) OR person_b IN ($1,$2)) LIMIT 1`, [a,b]);
       if (occupied.rowCount) return "married";
@@ -563,6 +564,17 @@ function createPostgresStore() {
         const req=await c.query(`SELECT id FROM shinobi_marriages WHERE person_a=$1 AND person_b=$2
           AND requester_id=$3 AND recipient_id=$4 AND status='pending' FOR UPDATE`,[a,b,proposerId,recipientId]);
         if(!req.rowCount){await c.query("ROLLBACK");return "missing";}
+        const related=await c.query(`WITH RECURSIVE ancestors(person_id,ancestor_id) AS (
+          SELECT child_id,parent_id FROM shinobi_family_adoptions WHERE status='accepted'
+          UNION
+          SELECT x.person_id,f.parent_id FROM ancestors x
+          JOIN shinobi_family_adoptions f ON f.child_id=x.ancestor_id AND f.status='accepted'
+        )
+        SELECT 1 FROM ancestors WHERE (person_id=$1 AND ancestor_id=$2) OR (person_id=$2 AND ancestor_id=$1)
+        UNION
+        SELECT 1 FROM ancestors x JOIN ancestors y ON x.ancestor_id=y.ancestor_id
+        WHERE x.person_id=$1 AND y.person_id=$2 LIMIT 1`,[a,b]);
+        if(related.rowCount){await c.query("ROLLBACK");return "related";}
         const occupied=await c.query(`SELECT 1 FROM shinobi_marriages WHERE status='accepted'
           AND (person_a IN ($1,$2) OR person_b IN ($1,$2)) LIMIT 1`,[a,b]);
         if(occupied.rowCount){await c.query("ROLLBACK");return "married";}
