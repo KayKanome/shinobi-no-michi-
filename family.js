@@ -1,4 +1,5 @@
-import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder } from "discord.js";
+import { renderFamilyTree } from "./family-tree.js";
 
 export function familyCommands() {
   return [
@@ -24,16 +25,11 @@ export async function handleFamilyCommand(interaction, repository) {
     await interaction.deferReply({ephemeral:true});
     const player=await repository.getPlayer(actorId);
     if(!player)return interaction.editReply("Você ainda não criou seu personagem. Use !registrar SeuNome primeiro.");
-    const family=await repository.getFamily(actorId),adoptions=await repository.getPendingAdoptions(actorId),marriages=await repository.getPendingMarriages(actorId);
-    const names=rows=>rows.length?rows.map(x=>x.name).join(" • "):"—";
-    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle(`🌳 Árvore da Família de ${player.name}`).setDescription([
-      "**💍 Laço conjugal**",family.spouse.length?family.spouse.map(x=>`${x.name} — ${x.role||"Cônjuge"}`).join("\n"):"Ainda não há cônjuge registrado.",
-      "**🌱 Geração acima — responsáveis**",names(family.parents),"**🌿 Sua geração — irmãos**",names(family.siblings),"**🌸 Geração abaixo — filhos**",names(family.children),
-      "**🌳 Outras gerações**",`Avós: ${names(family.grandparents)}\nNetos: ${names(family.grandchildren)}`,
-      "**🍃 Família extensa**",`Tios: ${names(family.auntsUncles)}\nPrimos: ${names(family.cousins)}\nSobrinhos: ${names(family.niecesNephews)}`,
-      "**📜 Convites pendentes**",`Adoção: ${adoptions.length} • Casamento: ${marriages.length}`,"_Os vínculos são construídos com consentimento; o histórico é preservado._"
-    ].join("\n\n")).setFooter({text:"Shinobi no Michi • Laços construídos com carinho"});
-    return interaction.editReply({embeds:[embed]});
+    const family=await repository.getFamily(actorId);
+    const png=await renderFamilyTree({player,family,ownerId:interaction.user.id,client:interaction.client});
+    const attachment=new AttachmentBuilder(png,{name:"arvore-genealogica.png"});
+    const embed=new EmbedBuilder().setColor(0xB68A45).setTitle(`🌳 Linhagem de ${player.name}`).setDescription("Uma história, muitos laços. Cada retrato representa alguém que faz parte da sua família.").setImage("attachment://arvore-genealogica.png").setFooter({text:"Shinobi no Michi • Árvore genealógica"});
+    return interaction.editReply({embeds:[embed],files:[attachment]});
   }
   if (command === "adotar") {
     const target = interaction.options.getUser("jogador");
