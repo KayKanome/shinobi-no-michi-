@@ -154,7 +154,7 @@ function categoryPanel(category, ownerId, avatarUrl) {
   }
 
   const sections = {
-    relacionamentos: ["💞 Relacionamentos", "O espaço de laços e compatibilidade será desenvolvido em uma próxima etapa."],
+    relacionamentos: ["💞 Relacionamentos", " **/casar jogador** — enviar pedido.\n**/aceitar_casamento pessoa** ou **/recusar_casamento pessoa** — responder.\n**/cancelar_casamento pessoa** — qualquer um pode encerrar. O anel da loja será conectado depois."],
     familia: ["🌳 Família", "Consulte a área Família para ver os comandos de adoção."],
     roleplay: ["🎭 Roleplay", "As ferramentas de interpretação e personagens serão desenvolvidas em uma próxima etapa."],
     jogos: ["🎮 Jogos", "Os minijogos e atividades interativas serão desenvolvidos em uma próxima etapa."],
@@ -204,7 +204,7 @@ export async function setupSocialInteractions(client, repository) {
     console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
-        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao"].includes(interaction.commandName)) {
+        if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento"].includes(interaction.commandName)) {
           return await handleFamilyCommand(interaction, repository);
         }
         if (interaction.commandName === "social") {
