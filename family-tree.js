@@ -19,7 +19,7 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   const groups=[
     {label:"ANCESTRAIS",subtitle:"Avós",items:family.grandparents||[],color:"#A67C43"},
     {label:"GERAÇÃO ANTERIOR",subtitle:"Responsáveis",items:family.parents||[],color:"#78956A"},
-    {label:"SEU NÚCLEO",subtitle:"Irmãos e cônjuge",items:[...(family.siblings||[]).map(x=>({...x,tag:"Irmão"})),...(family.spouse||[]).map(x=>({...x,tag:x.role||"Cônjuge"}))],color:"#B88745"},
+    {label:"SEU NÚCLEO",subtitle:"Irmãos e cônjuge",items:[...(family.siblings||[]).slice(0,2).map(x=>({...x,tag:"Irmão"})),...(family.spouse||[]).slice(0,1).map(x=>({...x,tag:x.role||"Cônjuge"}))],color:"#B88745"},
     {label:"PRÓXIMA GERAÇÃO",subtitle:"Filhos",items:family.children||[],color:"#78956A"},
     {label:"RAMOS DA FAMÍLIA",subtitle:"Tios, primos e sobrinhos",items:[...(family.auntsUncles||[]).map(x=>({...x,tag:"Tio/tia"})),...(family.cousins||[]).map(x=>({...x,tag:"Primo(a)"})),...(family.niecesNephews||[]).map(x=>({...x,tag:"Sobrinho(a)"})),...(family.grandchildren||[]).map(x=>({...x,tag:"Neto(a)"}))],color:"#A67C43"}
   ];
@@ -74,7 +74,7 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   for(let i=0;i<groups.length;i++){
     const g=groups[i],y=rowY[i],items=g.items;
     let cards=items;
-    if(i===2)cards=[root,...items];
+    if(i===2)cards=[...items.filter(x=>x.tag==="Irmão"),root,...items.filter(x=>x.tag!=="Irmão")];
     if(!cards.length){
       svg+=`<text x="800" y="${y+105}" text-anchor="middle" font-family="Georgia,serif" font-size="25" font-style="italic" fill="#9A8059">Este ramo ainda aguarda novos laços</text>`;
       continue;
