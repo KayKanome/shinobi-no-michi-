@@ -114,7 +114,7 @@ export async function handleFamilyCommand(interaction, repository) {
     player.familyGender=gender;
     await repository.savePlayer(player);
     const label=gender==="masculino"?"Masculino":gender==="feminino"?"Feminino":"Prefiro não dizer";
-    return interaction.reply({content:`🌸 Preferência de gênero familiar atualizada para **${label}**. A Momoka ajustará automaticamente os rótulos nas árvores: pai/mãe, marido/esposa ou termos neutros. Você pode alterar quando quiser com /papel.`,ephemeral:true});
+    return interaction.reply({content:`🌸 Os registros do clã foram atualizados. Sua identidade familiar agora está marcada como **${label}**.`,ephemeral:true});
   }
   if (command === "cancelar_casamento") {
     const other = interaction.options.getUser("pessoa");
