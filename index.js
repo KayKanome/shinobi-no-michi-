@@ -413,7 +413,7 @@ function createPostgresStore() {
       await initialize();
       const [parents, children, siblings, grandparents, grandchildren] = await Promise.all([
         pool.query(
-          `SELECT p.data->>'name' AS name
+          `SELECT p.id AS id, p.data->>'name' AS name
            FROM shinobi_family_adoptions a
            JOIN shinobi_players p ON p.id = a.parent_id
            WHERE a.child_id = $1 AND a.status = 'accepted'
@@ -421,7 +421,7 @@ function createPostgresStore() {
           [userId]
         ),
         pool.query(
-          `SELECT p.data->>'name' AS name
+          `SELECT p.id AS id, p.data->>'name' AS name
            FROM shinobi_family_adoptions a
            JOIN shinobi_players p ON p.id = a.child_id
            WHERE a.parent_id = $1 AND a.status = 'accepted'
@@ -429,7 +429,7 @@ function createPostgresStore() {
           [userId]
         ),
         pool.query(
-          `SELECT DISTINCT s.data->>'name' AS name
+          `SELECT DISTINCT s.id AS id, s.data->>'name' AS name
            FROM shinobi_family_adoptions mine
            JOIN shinobi_family_adoptions shared ON shared.parent_id = mine.parent_id
            JOIN shinobi_players s ON s.id = shared.child_id
@@ -439,7 +439,7 @@ function createPostgresStore() {
           [userId]
         ),
         pool.query(
-          `SELECT DISTINCT g.data->>'name' AS name
+          `SELECT DISTINCT g.id AS id, g.data->>'name' AS name
            FROM shinobi_family_adoptions mine
            JOIN shinobi_family_adoptions middle ON middle.child_id = mine.parent_id
            JOIN shinobi_players g ON g.id = middle.parent_id
@@ -449,7 +449,7 @@ function createPostgresStore() {
           [userId]
         ),
         pool.query(
-          `SELECT DISTINCT g.data->>'name' AS name
+          `SELECT DISTINCT g.id AS id, g.data->>'name' AS name
            FROM shinobi_family_adoptions mine
            JOIN shinobi_family_adoptions nextgen ON nextgen.parent_id = mine.child_id
            JOIN shinobi_players g ON g.id = nextgen.child_id
@@ -460,17 +460,17 @@ function createPostgresStore() {
         )
       ]);
       const [spouse, auntsUncles, cousins, niecesNephews] = await Promise.all([
-        pool.query(`SELECT p.data->>'name' AS name, CASE WHEN m.person_a=$1 THEN m.role_b ELSE m.role_a END AS role FROM shinobi_marriages m
+        pool.query(`SELECT p.id AS id, p.data->>'name' AS name, CASE WHEN m.person_a=$1 THEN m.role_b ELSE m.role_a END AS role FROM shinobi_marriages m
           JOIN shinobi_players p ON p.id = CASE WHEN m.person_a = $1 THEN m.person_b ELSE m.person_a END
           WHERE (m.person_a = $1 OR m.person_b = $1) AND m.status = 'accepted'`, [userId]),
-        pool.query(`SELECT DISTINCT p.data->>'name' AS name
+        pool.query(`SELECT DISTINCT p.id AS id, p.data->>'name' AS name
           FROM shinobi_family_adoptions mine
           JOIN shinobi_family_adoptions pl ON pl.child_id = mine.parent_id AND pl.status = 'accepted'
           JOIN shinobi_family_adoptions al ON al.parent_id = pl.parent_id AND al.status = 'accepted'
           JOIN shinobi_players p ON p.id = al.child_id
           WHERE mine.child_id = $1 AND mine.status = 'accepted' AND pl.child_id <> al.child_id
           ORDER BY name`, [userId]),
-        pool.query(`SELECT DISTINCT p.data->>'name' AS name
+        pool.query(`SELECT DISTINCT p.id AS id, p.data->>'name' AS name
           FROM shinobi_family_adoptions mine
           JOIN shinobi_family_adoptions pl ON pl.child_id = mine.parent_id AND pl.status = 'accepted'
           JOIN shinobi_family_adoptions al ON al.parent_id = pl.parent_id AND al.status = 'accepted'
@@ -478,7 +478,7 @@ function createPostgresStore() {
           JOIN shinobi_players p ON p.id = cl.child_id
           WHERE mine.child_id = $1 AND mine.status = 'accepted' AND pl.child_id <> al.child_id
           ORDER BY name`, [userId]),
-        pool.query(`SELECT DISTINCT p.data->>'name' AS name
+        pool.query(`SELECT DISTINCT p.id AS id, p.data->>'name' AS name
           FROM shinobi_family_adoptions mine
           JOIN shinobi_family_adoptions sl ON sl.parent_id = mine.parent_id AND sl.status = 'accepted'
           JOIN shinobi_family_adoptions nl ON nl.parent_id = sl.child_id AND nl.status = 'accepted'
