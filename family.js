@@ -6,7 +6,8 @@ export function familyCommands() {
     new SlashCommandBuilder().setName("adotar").setDescription("Envie um pedido de adoção.").addUserOption(o => o.setName("jogador").setDescription("Quem você deseja adotar como filho ou filha.").setRequired(true)),
     new SlashCommandBuilder().setName("aceitar_adocao").setDescription("Aceite um pedido de adoção.").addUserOption(o => o.setName("responsavel").setDescription("Quem enviou o pedido.").setRequired(true)),
     new SlashCommandBuilder().setName("recusar_adocao").setDescription("Recuse um pedido de adoção.").addUserOption(o => o.setName("responsavel").setDescription("Quem enviou o pedido.").setRequired(true)),
-    new SlashCommandBuilder().setName("cancelar_adocao").setDescription("Cancele um pedido ou vínculo de adoção.").addUserOption(o => o.setName("jogador").setDescription("A outra pessoa envolvida.").setRequired(true)),
+    new SlashCommandBuilder().setName("cancelar_adocao").setDescription("Cancele um pedido de adoção.").addUserOption(o => o.setName("jogador").setDescription("A outra pessoa envolvida.").setRequired(true)),
+    new SlashCommandBuilder().setName("desertar").setDescription("Encerre um vínculo de adoção com confirmação.").addUserOption(o => o.setName("jogador").setDescription("Seu responsável ou filho adotivo.").setRequired(true)),
     new SlashCommandBuilder().setName("casar").setDescription("Peça outra pessoa em casamento.").addUserOption(o => o.setName("jogador").setDescription("Com quem deseja se casar.").setRequired(true)),
     new SlashCommandBuilder().setName("aceitar_casamento").setDescription("Aceite um pedido de casamento.").addUserOption(o => o.setName("pessoa").setDescription("Quem enviou o pedido.").setRequired(true)),
     new SlashCommandBuilder().setName("recusar_casamento").setDescription("Recuse um pedido de casamento.").addUserOption(o => o.setName("pessoa").setDescription("Quem enviou o pedido.").setRequired(true)),
@@ -54,6 +55,16 @@ export async function handleFamilyCommand(interaction, repository) {
     await interaction.reply({ content: `🌸 Pedido de adoção enviado para ${target}. Só será concluído quando a pessoa aceitar.`, ephemeral: true });
     await target.send(`🌸 ${interaction.user.username} enviou um pedido para ser seu responsável no Shinobi no Michi. Use /aceitar_adocao ou /recusar_adocao para responder. Qualquer um dos dois poderá encerrar o vínculo depois.`).catch(() => {});
     return;
+  }
+  if (command === "desertar") {
+    const other = interaction.options.getUser("jogador");
+    if (!validOther(other, interaction)) return interaction.reply({ content: "Selecione a outra pessoa envolvida na adoção.", ephemeral: true });
+    const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import("discord.js");
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`family:desertar:confirm:${interaction.user.id}:${other.id}`).setLabel("Sim, desvincular").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`family:desertar:cancel:${interaction.user.id}:${other.id}`).setLabel("Não, voltar").setStyle(ButtonStyle.Secondary)
+    );
+    return interaction.reply({ content: `🌿 Você confirma que deseja encerrar o vínculo de adoção com ${other}? A árvore familiar será atualizada e o histórico será preservado.`, components: [row], ephemeral: true });
   }
   if (command === "cancelar_adocao") {
     const other = interaction.options.getUser("jogador");
