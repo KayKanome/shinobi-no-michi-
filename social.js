@@ -1,4 +1,5 @@
 import { familyCommands, handleFamilyCommand } from "./family.js";
+import { renderFamilyTree } from "./family-tree.js";
 
 import {
   ActionRowBuilder,
@@ -6,7 +7,8 @@ import {
   ButtonStyle,
   EmbedBuilder,
   SlashCommandBuilder,
-  UserSelectMenuBuilder
+  UserSelectMenuBuilder,
+  AttachmentBuilder
 } from "discord.js";
 
 export const SOCIAL_ACTIONS = {
@@ -240,9 +242,12 @@ export async function setupSocialInteractions(client, repository) {
         if(interaction.isButton()&&p[2]==="tree"){
           const player=await repository.getPlayer(`discord:${owner}`);
           if(!player)return interaction.reply({content:"Registre seu personagem primeiro com !registrar SeuNome.",ephemeral:true});
-          const fam=await repository.getFamily(`discord:${owner}`),line=(t,a)=>`**${t}**\n${a.length?a.map(x=>x.name).join(" • "):"—"}`;
-          const e=new EmbedBuilder().setColor(0x8DBB83).setTitle(`🌳 Árvore de ${player.name}`).setDescription([line("💍 Cônjuge",fam.spouse.map(x=>({name:`${x.name} — ${x.role||"Cônjuge"}`}))),line("🌱 Responsáveis",fam.parents),line("🌿 Irmãos",fam.siblings),line("🌸 Filhos",fam.children),line("🌳 Avós",fam.grandparents),line("🍃 Netos",fam.grandchildren),line("🌼 Tios",fam.auntsUncles),line("🪷 Primos",fam.cousins),line("🍂 Sobrinhos",fam.niecesNephews)].join("\n\n")).setFooter({text:"Laços construídos com consentimento"});
-          return interaction.reply({embeds:[e],ephemeral:true});
+          await interaction.deferReply({ephemeral:true});
+          const fam=await repository.getFamily(`discord:${owner}`);
+          const png=await renderFamilyTree({player,family:fam,ownerId:owner,client});
+          const attachment=new AttachmentBuilder(png,{name:"arvore-genealogica.png"});
+          const e=new EmbedBuilder().setColor(0xB68A45).setTitle(`🌳 Linhagem de ${player.name}`).setDescription("Uma história, muitos laços. Cada retrato representa alguém que faz parte da sua família.").setImage("attachment://arvore-genealogica.png").setFooter({text:"Shinobi no Michi • Árvore genealógica"});
+          return interaction.editReply({embeds:[e],files:[attachment]});
         }
         if(interaction.isButton()&&["adopt","marry","unlink","divorce"].includes(p[2])){
           const act=p[2],menu=new UserSelectMenuBuilder().setCustomId(`social:familytarget:${act}:${owner}`).setPlaceholder("Escolha a pessoa").setMinValues(1).setMaxValues(1);
