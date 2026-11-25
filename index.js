@@ -326,6 +326,8 @@ function createPostgresStore() {
             id BIGSERIAL PRIMARY KEY,
             person_a TEXT NOT NULL,
             person_b TEXT NOT NULL,
+            requester_id TEXT NOT NULL,
+            recipient_id TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             responded_at TIMESTAMPTZ,
@@ -528,14 +530,14 @@ function createPostgresStore() {
       const occupied = await pool.query(`SELECT 1 FROM shinobi_marriages WHERE status='accepted'
         AND (person_a IN ($1,$2) OR person_b IN ($1,$2)) LIMIT 1`, [a,b]);
       if (occupied.rowCount) return "married";
-      const result = await pool.query(`INSERT INTO shinobi_marriages (person_a,person_b,status)
-        VALUES ($1,$2,'pending') ON CONFLICT DO NOTHING RETURNING id`, [a,b]);
+      const result = await pool.query(`INSERT INTO shinobi_marriages (person_a,person_b,requester_id,recipient_id,status)
+        VALUES ($1,$2,$3,$4,'pending') ON CONFLICT DO NOTHING RETURNING id`, [a,b,requesterId,targetId]);
       return result.rowCount ? "created" : "duplicate";
     },
     async getPendingMarriages(userId) {
       await initialize();
       const result = await pool.query(`SELECT CASE WHEN person_a=$1 THEN person_b ELSE person_a END AS other_id
-        FROM shinobi_marriages WHERE (person_a=$1 OR person_b=$1) AND status='pending'`, [userId]);
+        FROM shinobi_marriages WHERE recipient_id=$1 AND status='pending'`, [userId]);
       if (!result.rowCount) return [];
       const players = await pool.query(`SELECT id,data->>'name' AS name FROM shinobi_players WHERE id=ANY($1::text[])`,
         [result.rows.map(x=>x.other_id)]);
@@ -545,7 +547,7 @@ function createPostgresStore() {
       await initialize();
       const [a,b]=[proposerId,recipientId].sort();
       const r=await pool.query(`UPDATE shinobi_marriages SET status='declined',responded_at=NOW()
-        WHERE person_a=$1 AND person_b=$2 AND status='pending'`,[a,b]);
+        WHERE person_a=$1 AND person_b=$2 AND requester_id=$3 AND recipient_id=$4 AND status='pending'`,[a,b,proposerId,recipientId]);
       return r.rowCount===1;
     },
     async acceptMarriageRequest(proposerId, recipientId) {
@@ -554,7 +556,10 @@ function createPostgresStore() {
       const c=await pool.connect();
       try {
         await c.query("BEGIN");
-        const req=await c.query(`SELECT id FROM shinobi_marriages WHERE person_a=$1 AND person_b=$2 AND status='pending' FOR UPDATE`,[a,b]);
+        await c.query("SELECT pg_advisory_xact_lock(hashtext($1))", [a]);
+        await c.query("SELECT pg_advisory_xact_lock(hashtext($1))", [b]);
+        const req=await c.query(`SELECT id FROM shinobi_marriages WHERE person_a=$1 AND person_b=$2
+          AND requester_id=$3 AND recipient_id=$4 AND status='pending' FOR UPDATE`,[a,b,proposerId,recipientId]);
         if(!req.rowCount){await c.query("ROLLBACK");return "missing";}
         const occupied=await c.query(`SELECT 1 FROM shinobi_marriages WHERE status='accepted'
           AND (person_a IN ($1,$2) OR person_b IN ($1,$2)) LIMIT 1`,[a,b]);
