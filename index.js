@@ -519,13 +519,19 @@ function createPostgresStore() {
     async createMarriageRequest(requesterId, targetId) {
       await initialize();
       const [a, b] = [requesterId, targetId].sort();
-      const related = await pool.query(`WITH RECURSIVE ancestors(person_id,ancestor_id) AS (
-        SELECT child_id,parent_id FROM shinobi_family_adoptions WHERE status='accepted'
-        UNION
-        SELECT x.person_id,f.parent_id FROM ancestors x
-        JOIN shinobi_family_adoptions f ON f.child_id=x.ancestor_id AND f.status='accepted'
-      )
-      SELECT 1 FROM ancestors WHERE (person_id=$1 AND ancestor_id=$2) OR (person_id=$2 AND ancestor_id=$1)
+      const related = await pool.query(`WITH RECURSIVE parent_edges(parent_id,child_id) AS (
+          SELECT parent_id,child_id FROM shinobi_family_adoptions WHERE status='accepted'
+          UNION
+          SELECT CASE WHEN m.person_a=a.parent_id THEN m.person_b ELSE m.person_a END,a.child_id
+          FROM shinobi_family_adoptions a
+          JOIN shinobi_marriages m ON (m.person_a=a.parent_id OR m.person_b=a.parent_id) AND m.status='accepted'
+          WHERE a.status='accepted'
+        ), ancestors(person_id,ancestor_id) AS (
+          SELECT child_id,parent_id FROM parent_edges
+          UNION
+          SELECT x.person_id,f.parent_id FROM ancestors x
+          JOIN parent_edges f ON f.child_id=x.ancestor_id
+        )      SELECT 1 FROM ancestors WHERE (person_id=$1 AND ancestor_id=$2) OR (person_id=$2 AND ancestor_id=$1)
       UNION
       SELECT 1 FROM ancestors x JOIN ancestors y ON x.ancestor_id=y.ancestor_id
       WHERE x.person_id=$1 AND y.person_id=$2 LIMIT 1`,[a,b]);
@@ -564,13 +570,19 @@ function createPostgresStore() {
         const req=await c.query(`SELECT id FROM shinobi_marriages WHERE person_a=$1 AND person_b=$2
           AND requester_id=$3 AND recipient_id=$4 AND status='pending' FOR UPDATE`,[a,b,proposerId,recipientId]);
         if(!req.rowCount){await c.query("ROLLBACK");return "missing";}
-        const related=await c.query(`WITH RECURSIVE ancestors(person_id,ancestor_id) AS (
-          SELECT child_id,parent_id FROM shinobi_family_adoptions WHERE status='accepted'
+        const related=await c.query(`WITH RECURSIVE parent_edges(parent_id,child_id) AS (
+          SELECT parent_id,child_id FROM shinobi_family_adoptions WHERE status='accepted'
+          UNION
+          SELECT CASE WHEN m.person_a=a.parent_id THEN m.person_b ELSE m.person_a END,a.child_id
+          FROM shinobi_family_adoptions a
+          JOIN shinobi_marriages m ON (m.person_a=a.parent_id OR m.person_b=a.parent_id) AND m.status='accepted'
+          WHERE a.status='accepted'
+        ), ancestors(person_id,ancestor_id) AS (
+          SELECT child_id,parent_id FROM parent_edges
           UNION
           SELECT x.person_id,f.parent_id FROM ancestors x
-          JOIN shinobi_family_adoptions f ON f.child_id=x.ancestor_id AND f.status='accepted'
-        )
-        SELECT 1 FROM ancestors WHERE (person_id=$1 AND ancestor_id=$2) OR (person_id=$2 AND ancestor_id=$1)
+          JOIN parent_edges f ON f.child_id=x.ancestor_id
+        )        SELECT 1 FROM ancestors WHERE (person_id=$1 AND ancestor_id=$2) OR (person_id=$2 AND ancestor_id=$1)
         UNION
         SELECT 1 FROM ancestors x JOIN ancestors y ON x.ancestor_id=y.ancestor_id
         WHERE x.person_id=$1 AND y.person_id=$2 LIMIT 1`,[a,b]);
