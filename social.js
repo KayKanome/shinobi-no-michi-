@@ -361,6 +361,10 @@ export async function setupSocialInteractions(client, repository) {
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     new SlashCommandBuilder().setName("personagem").setDescription("Abre sua central privada de personagens e interpretação."),
+    new SlashCommandBuilder().setName("mural").setDescription("Configura o canal do Mural da Vila.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+      .addSubcommand(sub => sub.setName("configurar").setDescription("Define onde a Momoka publicará recordes pessoais.")
+        .addChannelOption(option => option.setName("canal").setDescription("Canal do Mural da Vila.").addChannelTypes(ChannelType.GuildText).setRequired(true))),
     new SlashCommandBuilder().setName("momoka-configurar").setDescription("Define o canal de convivência da Momoka.")
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
       .addChannelOption(option => option.setName("canal").setDescription("Canal onde a Momoka poderá conversar livremente.").addChannelTypes(ChannelType.GuildText).setRequired(true)),
@@ -390,6 +394,17 @@ export async function setupSocialInteractions(client, repository) {
     console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === "mural") {
+          if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+            return interaction.reply({ content: "Somente a staff com permissão de gerenciar o servidor pode configurar o Mural da Vila. 🌸", ephemeral: true });
+          }
+          const channel = interaction.options.getChannel("canal");
+          if (!channel?.isTextBased?.() || !channel.guild || channel.guild.id !== interaction.guildId) {
+            return interaction.reply({ content: "Escolha um canal de texto deste servidor.", ephemeral: true });
+          }
+          await repository.setMuralChannel(interaction.guildId, channel.id);
+          return interaction.reply({ content: `Mural da Vila configurado em ${channel}! A Momoka publicará ali os avisos de novos recordes pessoais. 🏅`, ephemeral: true });
+        }
         if (interaction.commandName === "momoka-configurar") {
           if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
             return interaction.reply({ content: "Somente administradores do servidor podem configurar o canal da Momoka. 🌸", ephemeral: true });
