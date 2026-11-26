@@ -248,10 +248,13 @@ export const communitySlashCommands = [
       .addChannelOption(o => o.setName("canal").setDescription("Canal de eventos").addChannelTypes(ChannelType.GuildText).setRequired(true)))
     .addSubcommand(s => s.setName("parar").setDescription("Encerra o evento ativo."))
     .addSubcommand(s => s.setName("forcar").setDescription("Publica um evento surpresa imediatamente.")),
+  new SlashCommandBuilder().setName("atividade").setDescription("Testa as atividades surpresa da Momoka.")
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addSubcommand(s => s.setName("forcar").setDescription("Inicia uma missão ou sala de jogo surpresa agora.")),
 ];
 
 export async function handleCommunityCommand(interaction, client, repository) {
-  if (!["missao", "evento"].includes(interaction.commandName)) return false;
+  if (!["missao", "evento", "atividade"].includes(interaction.commandName)) return false;
   if (!isStaff(interaction)) {
     await interaction.reply({ content: "Este comando é exclusivo da staff com permissão de gerenciar o servidor. 🌸", ephemeral: true });
     return true;
@@ -259,6 +262,35 @@ export async function handleCommunityCommand(interaction, client, repository) {
   const action = interaction.options.getSubcommand();
   const guildId = interaction.guildId;
   const state = await readState(repository, guildId);
+
+  if (interaction.commandName === "atividade" && action === "forcar") {
+    if (state.active?.status === "active" && Date.now() <= state.active.endsAt) {
+      await interaction.reply({ content: "Já existe uma atividade comunitária ativa. Encerre-a antes de iniciar outra.", ephemeral: true });
+      return true;
+    }
+    const chatId = await repository.getMomokaChatChannel(guildId).catch(() => null);
+    const channel = (chatId ? await client.channels.fetch(chatId).catch(() => null) : null)
+      || (state.eventChannelId ? await client.channels.fetch(state.eventChannelId).catch(() => null) : null)
+      || interaction.channel;
+    if (!channel?.isTextBased?.() || !channel.threads?.create) {
+      await interaction.reply({ content: "Não encontrei um canal de convivência compatível para abrir a atividade.", ephemeral: true });
+      return true;
+    }
+    if (Math.random() < 0.5) {
+      await startAutomaticGame(client, repository, guildId, channel, state);
+      await interaction.reply({ content: "🎮 A Momoka abriu uma sala de jogo surpresa em " + channel + "! 🌸", ephemeral: true });
+    } else {
+      const event = await createEvent(client, repository, guildId, channel, {
+        ...chooseSurprise(state), kind: "momoka"
+      });
+      const refreshed = await readState(repository, guildId);
+      refreshed.lastAutoAt = Date.now();
+      refreshed.recentScenarioIds = state.recentScenarioIds;
+      await writeState(repository, guildId, refreshed);
+      await interaction.reply({ content: "🌸 A Momoka lançou uma missão surpresa em " + channel + "!", ephemeral: true });
+    }
+    return true;
+  }
 
   if (interaction.commandName === "missao" && action === "ativar") {
     state.autoEnabled = true;
