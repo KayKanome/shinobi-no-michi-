@@ -91,7 +91,8 @@ function modePanel(owner) {
   ));
   rows.push(new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("games:rank:all:" + owner).setLabel("🏆 Ranking geral").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("games:rank:choose:" + owner).setLabel("Rankings por jogo").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("games:rank:choose:" + owner).setLabel("Rankings por jogo").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("social:back:" + owner).setLabel("Voltar").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
   ));
   return { embeds: [embed], components: rows };
 }
