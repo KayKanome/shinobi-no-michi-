@@ -17,16 +17,31 @@ async function getState(repository, guildId) {
 async function saveState(repository, guildId, state) {
   await repository.setCommunityState(guildId, state);
 }
-function newspaperEmbed(label, headline, body, editionNote = "Plantão da vila") {
-  return new EmbedBuilder()
-    .setColor(0xD96FA8)
-    .setAuthor({ name: "KONOHAGAKURE • IMPRENSA DA VILA" })
-    .setTitle("📰 Jornal de Konohagakure")
-    .setDescription(("*" + label.toLocaleUpperCase("pt-BR") + "*\n\n# " + headline + "\n\n" + body).slice(0, 3900))
-    .setThumbnail("https://cdn.discordapp.com/embed/avatars/5.png")
-    .addFields({ name: "💬 Da redação", value: "“A vila nunca fica sem histórias. E eu estarei por aqui para contar cada uma delas!” — Momoka 🌸" })
-    .setFooter({ text: editionNote + " • Shinobi no Michi" })
+function newspaperEmbed(label, headline, entries, weekly = false) {
+  const edition = weekly ? "EDIÇÃO SEMANAL" : "PLANTÃO EXTRAORDINÁRIO";
+  const embed = new EmbedBuilder()
+    .setColor(0xB85C87)
+    .setAuthor({ name: "📰  O CORREIO DE KONOHAGAKURE  •  IMPRENSA DA VILA" })
+    .setTitle(headline)
+    .setDescription("**" + edition + "  |  " + label.toLocaleUpperCase("pt-BR") + "**\\n\\n" +
+      (weekly
+        ? "Boa noite, Konohagakure! 🌙 A semana foi cheia de acontecimentos, encontros e histórias. Nossa redação reuniu os fatos que merecem ficar na memória da vila."
+        : "Atenção, moradores! 📯 Aconteceu, a Momoka ficou sabendo — e a notícia chegou à redação! Confira o que está movimentando a nossa vila."))
+    .setFooter({ text: "Momoka • Repórter de Konohagakure  |  Shinobi no Michi" })
     .setTimestamp();
+
+  for (const item of entries.slice(-6)) {
+    const category = String(item.category || "Notícia da vila").slice(0, 80);
+    const text = String(item.text || "Um acontecimento chamou a atenção dos moradores.").slice(0, 900);
+    embed.addFields({ name: "✦ " + category, value: text });
+  }
+  embed.addFields({
+    name: "🌸 Comentário da Momoka",
+    value: weekly
+      ? "Que semana, hein? Cada morador ajudou a escrever um pedacinho dessa história. Já estou curiosa para descobrir o que vem pela frente!"
+      : "Parece que a vila não sabe ficar parada nem por um instante! Vou continuar de olho — qualquer novidade importante, vocês serão os primeiros a saber. 😉"
+  });
+  return embed;
 }
 
 let newspaperClient = null;
@@ -34,16 +49,12 @@ const pendingEditions = new Map();
 
 function articleHeadline(item) {
   const category = String(item.category || "").toLowerCase();
-  if (category.includes("interação")) return "Pequenos gestos movimentam a vila";
-  if (category.includes("rp") || category.includes("interpretação")) return "Uma nova história ganha vida em Konohagakure";
-  if (category.includes("jogo") || category.includes("partida")) return "Competição e diversão agitam a comunidade";
+  if (category.includes("interação")) return "Gestos simples, histórias que aproximam";
+  if (category.includes("rp") || category.includes("interpretação")) return "Uma nova história começa a ser escrita";
+  if (category.includes("jogo") || category.includes("partida")) return "Disputa movimenta a comunidade";
   if (category.includes("missão")) return "Shinobis entram em ação";
-  if (category.includes("evento")) return "A vila se reúne para um novo acontecimento";
-  return "Um novo acontecimento entra para a história da vila";
-}
-function articleText(item) {
-  const value = String(item.text || "").trim();
-  return value ? value.charAt(0).toLocaleUpperCase("pt-BR") + value.slice(1) : "Um acontecimento chamou a atenção dos moradores.";
+  if (category.includes("evento")) return "A vila se reúne em clima de celebração";
+  return "Acontecimento movimenta Konohagakure";
 }
 
 async function publishEdition(client, repository, guildId, label, entries, weekly = false) {
@@ -51,23 +62,16 @@ async function publishEdition(client, repository, guildId, label, entries, weekl
   const channelId = state.newspaperChannelId;
   const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
   if (!channel?.isTextBased?.() || !channel.guild) return false;
-  const stories = entries.slice(-8);
+
+  const stories = entries.slice(-6);
   const headline = stories.length === 1
     ? articleHeadline(stories[0])
-    : weekly ? "A semana em que a vila não ficou parada" : "A movimentação recente de Konohagakure";
-  const opening = weekly
-    ? "Boa noite, moradores! 🌙 A semana chega ao fim, e nossa equipe reuniu histórias que merecem ser lembradas. Confira os destaques:"
-    : "Atenção, moradores! 📣 Nossa equipe acompanhou de perto os acontecimentos e traz agora os detalhes que estão movimentando Konohagakure.";
-  const bodyStories = stories.length
-    ? stories.map(item => "**" + String(item.category || "Notícia da vila") + "**\n" + articleText(item)).join("\n\n")
-    : "Por enquanto, os corredores da vila estão tranquilos. Mas fiquem atentos: basta um novo acontecimento para a próxima edição chegar! 🌸";
-  const closing = weekly
-    ? "\n\n**E esse foi o resumo da semana!** Obrigada a todos que fizeram parte dessas histórias. Até a próxima edição! — Momoka 📰"
-    : "\n\n**E a história continua...** Nossa equipe seguirá de olho nos próximos acontecimentos. Se algo movimentar a vila, vocês saberão por aqui! — Momoka 🌸";
-  const body = (opening + "\n\n" + bodyStories + closing).slice(0, 3000);
+    : weekly ? "Os acontecimentos que marcaram a semana"
+      : "As últimas notícias da nossa vila";
+  const edition = newspaperEmbed(label, headline, stories, weekly);
   await channel.send({
     content: "@everyone",
-    embeds: [newspaperEmbed(label, headline, body, weekly ? "Edição semanal" : "Plantão da vila")],
+    embeds: [edition],
     allowedMentions: { parse: ["everyone"] }
   });
   if (weekly) {
