@@ -69,9 +69,10 @@ test("ship gera resultado estável, simétrico e com porcentagem válida", () =>
   const reversed = calculateShipResult("222", "111");
   assert.deepEqual(first, reversed);
   assert.ok(Number.isInteger(first.percentage));
-  assert.ok(first.percentage >= 0 && first.percentage <= 100);
+  assert.ok(first.percentage >= 1 && first.percentage <= 100);
   assert.ok(first.label);
   assert.ok(first.description);
+  assert.ok(first.momoka);
   assert.throws(() => calculateShipResult("111", "111"), /duas pessoas diferentes/);
 });
 
