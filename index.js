@@ -503,7 +503,7 @@ function createPostgresStore() {
     },
     async setMuralChannel(guildId, channelId) {
       await initialize();
-      await pool.query(`INSERT INTO shinobi_momoka_settings (guild_id, chat_channel_id, mural_channel_id) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET mural_channel_id=EXCLUDED.mural_channel_id, updated_at=NOW()`, [guildId, "disabled", channelId]);
+      await pool.query(`INSERT INTO shinobi_momoka_settings (guild_id, chat_channel_id, mural_channel_id) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET mural_channel_id=EXCLUDED.mural_channel_id, updated_at=NOW()`, [guildId, "", channelId]);
       return channelId;
     },
     async getRpCharacters(ownerId) {
