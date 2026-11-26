@@ -13,61 +13,14 @@ import {
 } from "discord.js";
 
 export const SOCIAL_ACTIONS = {
-  hug: {
-    label: "Abraçar",
-    verb: "deu um abraço em",
-    gifs: [
-      "https://media.giphy.com/media/Jweze3z5nvgLXNATvE/giphy.gif",
-      "https://media.giphy.com/media/yc4ZPBuo4broxc9cRn/giphy.gif",
-      "https://media.giphy.com/media/nsYlsQmxYIY5jVqe6j/giphy.gif"
-    ]
-  },
-  pat: {
-    label: "Fazer carinho",
-    verb: "fez carinho na cabeça de",
-    gifs: [
-      "https://media.giphy.com/media/z8OKNbMR8LsqhBZR1Q/giphy.gif",
-      "https://media.giphy.com/media/Fr3nvJHT7nkZ4TNrhX/giphy.gif",
-      "https://media.giphy.com/media/lSDpJnjigpfor1udlm/giphy.gif"
-    ]
-  },
-  wave: {
-    label: "Cumprimentar",
-    verb: "acenou para",
-    gifs: [
-      "https://media.giphy.com/media/FraE0FGfEc091zpkNZ/giphy.gif",
-      "https://media.giphy.com/media/ktLSY7TZFY3Rie2JZM/giphy.gif"
-    ]
-  },
-  dance: {
-    label: "Dançar",
-    verb: "dançou para",
-    gifs: ["https://media.giphy.com/media/kOhxnWg9jYBXG6uedj/giphy.gif"]
-  },
-  happy: {
-    label: "Feliz",
-    verb: "ficou feliz com",
-    gifs: ["https://media.giphy.com/media/MDJ9IbxxvDUQM/giphy.gif"]
-  },
-  angry: {
-    label: "Expressar raiva",
-    verb: "fez uma expressão de raiva para",
-    gifs: ["https://media.giphy.com/media/wjzlpNjQxRFGMBKz2X/giphy.gif"]
-  },
-  sad: {
-    label: "Expressar tristeza",
-    verb: "ficou triste perto de",
-    gifs: ["https://media.giphy.com/media/ROF8OQvDmxytW/giphy.gif"]
-  },
-  attack: {
-    label: "Atacar",
-    verb: "atacou",
-    gifs: [
-      "https://media.giphy.com/media/Yl3oC8pHe9HkoqMa4R/giphy.gif",
-      "https://media.giphy.com/media/MaTKHJTWlEHe0sDsML/giphy.gif",
-      "https://media.giphy.com/media/VtBS7Vvb1YiteCGgZ8/giphy.gif"
-    ]
-  }
+  hug: { label: "Abraçar", verb: "deu um abraço em" },
+  pat: { label: "Fazer carinho", verb: "fez carinho na cabeça de" },
+  wave: { label: "Cumprimentar", verb: "acenou para" },
+  dance: { label: "Dançar", verb: "dançou para" },
+  happy: { label: "Feliz", verb: "ficou feliz com" },
+  angry: { label: "Expressar raiva", verb: "fez uma expressão de raiva para" },
+  sad: { label: "Expressar tristeza", verb: "ficou triste perto de" },
+  attack: { label: "Atacar", verb: "atacou" }
 };
 
 const SOCIAL_COMMANDS = {
@@ -92,10 +45,7 @@ export function isSocialPanelOwner(customId, userId) {
   return Boolean(ownerId && ownerId === String(userId));
 }
 
-function randomGif(action) {
-  const gifs = SOCIAL_ACTIONS[action].gifs;
-  return gifs[Math.floor(Math.random() * gifs.length)];
-}
+
 
 function mainPanel(ownerId, avatarUrl) {
   const embed = new EmbedBuilder()
@@ -173,7 +123,7 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const embed = new EmbedBuilder()
       .setColor(0xE89BB5)
       .setTitle("🤗 Interações")
-      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará somente a ação e o GIF.\n\nAtalhos: /abracar, /carinho, /cumprimentar, /dancar, /feliz, /raiva, /tristeza e /atacar.");
+      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará a ação. Os GIFs serão adicionados conforme você enviar.\n\nAtalhos: /abracar, /carinho, /cumprimentar, /dancar, /feliz, /raiva, /tristeza e /atacar.");
     const actionsOne = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
@@ -211,7 +161,7 @@ async function publishAction(channel, actor, target, action) {
   const targetName = target.globalName || target.username;
   const embed = new EmbedBuilder()
     .setColor(0xE89BB5)
-    .setImage(randomGif(action));
+    .setDescription("O GIF desta interação será adicionado quando você enviar o escolhido.");
   await channel.send({
     content: formatSocialAction(actorName, targetName, action),
     embeds: [embed],
