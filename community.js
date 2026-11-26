@@ -429,21 +429,26 @@ export async function handleCommunityInteraction(interaction, repository) {
       { name: "Pétala Encantada", emoji: "🌷" },
       { name: "Pergaminho Miniatura", emoji: "📜" }
     ];
-    const reward = collectibles[Math.floor(Math.random() * collectibles.length)];
-    event.rewardsByUser[interaction.user.id] = reward;
-    state.eventInventories = state.eventInventories || {};
-    state.eventInventories[interaction.user.id] = state.eventInventories[interaction.user.id] || [];
-    state.eventInventories[interaction.user.id].push({ ...reward, eventId: event.id, eventTitle: event.title, obtainedAt: Date.now() });
-    state.eventStats = state.eventStats || {};
-    state.eventStats[interaction.user.id] = state.eventStats[interaction.user.id] || { joined: 0 };
-    state.eventStats[interaction.user.id].joined += 1;
+    let reward = event.rewardsByUser[interaction.user.id];
+    if (!reward) {
+      reward = collectibles[Math.floor(Math.random() * collectibles.length)];
+      event.rewardsByUser[interaction.user.id] = reward;
+      state.eventInventories = state.eventInventories || {};
+      state.eventInventories[interaction.user.id] = state.eventInventories[interaction.user.id] || [];
+      state.eventInventories[interaction.user.id].push({ ...reward, eventId: event.id, eventTitle: event.title, obtainedAt: Date.now() });
+      state.eventStats = state.eventStats || {};
+      state.eventStats[interaction.user.id] = state.eventStats[interaction.user.id] || { joined: 0 };
+      state.eventStats[interaction.user.id].joined += 1;
+    }
     await writeState(repository, interaction.guildId, state);
-    await interaction.reply({ content: "🎁 Você entrou em **" + event.title + "** e recebeu " + reward.emoji + " **" + reward.name + "**! Consulte com /evento inventario.", ephemeral: true });
+    await interaction.message.edit({ embeds: [eventEmbed(event)] }).catch(() => {});
+    await interaction.reply({ content: reward ? "🎁 Você entrou em **" + event.title + "** e recebeu " + reward.emoji + " **" + reward.name + "**! Consulte com /evento inventario." : "Você entrou no evento! 🌸", ephemeral: true });
     return true;
   }
   if (action === "leave") {
     event.participants = event.participants.filter(id => id !== interaction.user.id);
     await writeState(repository, interaction.guildId, state);
+    await interaction.message.edit({ embeds: [eventEmbed(event)] }).catch(() => {});
     await interaction.reply({ content: "Você saiu do evento. Seu colecionável conquistado continua no inventário. 🌸", ephemeral: true });
     return true;
   }
@@ -460,7 +465,16 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
   const state = await readState(repository, guildId);
   const event = state.active;
   if (!event || event.status !== "active" || event.kind === "automatic-game") return;
-  if (Date.now() > event.endsAt) { event.status = "expired"; await writeState(repository, guildId, state); return; }
+  if (Date.now() > event.endsAt) {
+    event.status = "expired";
+    await writeState(repository, guildId, state);
+    await recordNewspaperMoment(repository, guildId, {
+      category: "Evento encerrado por prazo",
+      text: "**" + event.title + "** terminou. Resultado: " + event.progress + "/" + event.goal + " pontos e " + (event.participants || []).length + " participantes.",
+      channelId: event.channelId
+    });
+    return;
+  }
   const earnedPoints = Math.max(0, Number(points) || 0);
   event.progress += earnedPoints;
   event.pointsByUser = event.pointsByUser || {};
