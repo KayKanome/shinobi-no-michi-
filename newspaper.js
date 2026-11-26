@@ -17,36 +17,57 @@ async function getState(repository, guildId) {
 async function saveState(repository, guildId, state) {
   await repository.setCommunityState(guildId, state);
 }
-function newspaperEmbed(label, body) {
+function newspaperEmbed(label, headline, body, editionNote = "Plantão da vila") {
   return new EmbedBuilder()
-    .setColor(PINK)
+    .setColor(0xD96FA8)
+    .setAuthor({ name: "KONOHAGAKURE • IMPRENSA DA VILA" })
     .setTitle("📰 Jornal de Konohagakure")
-    .setDescription(("*" + label.toLocaleUpperCase("pt-BR") + "*\n\n" + body).slice(0, 3900))
-    .setFooter({ text: "Momoka • As histórias da vila, contadas por quem vive nelas." })
+    .setDescription(("*" + label.toLocaleUpperCase("pt-BR") + "*\n\n# " + headline + "\n\n" + body).slice(0, 3900))
+    .setThumbnail("https://cdn.discordapp.com/embed/avatars/5.png")
+    .addFields({ name: "💬 Da redação", value: "“A vila nunca fica sem histórias. E eu estarei por aqui para contar cada uma delas!” — Momoka 🌸" })
+    .setFooter({ text: editionNote + " • Shinobi no Michi" })
     .setTimestamp();
 }
 
-export async function recordNewspaperMoment(repository, guildId, moment) {
-  if (!guildId || !moment?.text) return;
-  const state = await getState(repository, guildId);
-  const entries = Array.isArray(state.newspaperEntries) ? state.newspaperEntries : [];
-  entries.push({ at: Date.now(), category: moment.category || "Momento da vila", text: String(moment.text).slice(0, 450) });
-  state.newspaperEntries = entries.slice(-150);
-  await saveState(repository, guildId, state);
+let newspaperClient = null;
+const pendingEditions = new Map();
+
+function articleHeadline(item) {
+  const category = String(item.category || "").toLowerCase();
+  if (category.includes("interação")) return "Pequenos gestos movimentam a vila";
+  if (category.includes("rp") || category.includes("interpretação")) return "Uma nova história ganha vida em Konohagakure";
+  if (category.includes("jogo") || category.includes("partida")) return "Competição e diversão agitam a comunidade";
+  if (category.includes("missão")) return "Shinobis entram em ação";
+  if (category.includes("evento")) return "A vila se reúne para um novo acontecimento";
+  return "Um novo acontecimento entra para a história da vila";
+}
+function articleText(item) {
+  const value = String(item.text || "").trim();
+  return value ? value.charAt(0).toLocaleUpperCase("pt-BR") + value.slice(1) : "Um acontecimento chamou a atenção dos moradores.";
 }
 
 async function publishEdition(client, repository, guildId, label, entries, weekly = false) {
   const state = await getState(repository, guildId);
   const channelId = state.newspaperChannelId;
   const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
-  if (!channel?.isTextBased?.()) return false;
-  const sections = entries.length
-    ? entries.map((item, i) => "**" + (i + 1) + ". " + item.category + "**\n" + item.text).join("\n\n")
-    : "A vila esteve tranquila desta vez, mas novas histórias ainda estão por vir. 🌸";
-  const body = (weekly ? "**O que aconteceu nesta semana:**\n\n" : "**Acontecimento em destaque:**\n\n") + sections;
+  if (!channel?.isTextBased?.() || !channel.guild) return false;
+  const stories = entries.slice(-8);
+  const headline = stories.length === 1
+    ? articleHeadline(stories[0])
+    : weekly ? "A semana em que a vila não ficou parada" : "A movimentação recente de Konohagakure";
+  const opening = weekly
+    ? "Boa noite, moradores! 🌙 A semana chega ao fim, e nossa equipe reuniu histórias que merecem ser lembradas. Confira os destaques:"
+    : "Atenção, moradores! 📣 Nossa equipe acompanhou de perto os acontecimentos e traz agora os detalhes que estão movimentando Konohagakure.";
+  const bodyStories = stories.length
+    ? stories.map(item => "**" + String(item.category || "Notícia da vila") + "**\n" + articleText(item)).join("\n\n")
+    : "Por enquanto, os corredores da vila estão tranquilos. Mas fiquem atentos: basta um novo acontecimento para a próxima edição chegar! 🌸";
+  const closing = weekly
+    ? "\n\n**E esse foi o resumo da semana!** Obrigada a todos que fizeram parte dessas histórias. Até a próxima edição! — Momoka 📰"
+    : "\n\n**E a história continua...** Nossa equipe seguirá de olho nos próximos acontecimentos. Se algo movimentar a vila, vocês saberão por aqui! — Momoka 🌸";
+  const body = (opening + "\n\n" + bodyStories + closing).slice(0, 3000);
   await channel.send({
     content: "@everyone",
-    embeds: [newspaperEmbed(label, body)],
+    embeds: [newspaperEmbed(label, headline, body, weekly ? "Edição semanal" : "Plantão da vila")],
     allowedMentions: { parse: ["everyone"] }
   });
   if (weekly) {
@@ -55,6 +76,31 @@ async function publishEdition(client, repository, guildId, label, entries, weekl
     await saveState(repository, guildId, state);
   }
   return true;
+}
+
+export async function recordNewspaperMoment(repository, guildId, moment) {
+  if (!guildId || !moment?.text) return;
+  const state = await getState(repository, guildId);
+  const entries = Array.isArray(state.newspaperEntries) ? state.newspaperEntries : [];
+  const entry = { at: Date.now(), category: moment.category || "Momento da vila", text: String(moment.text).slice(0, 450) };
+  entries.push(entry);
+  state.newspaperEntries = entries.slice(-150);
+  await saveState(repository, guildId, state);
+
+  // Junta acontecimentos muito próximos em um plantão, sem transformar o jornal em spam.
+  if (!newspaperClient || !state.newspaperChannelId) return;
+  const pending = pendingEditions.get(guildId) || { entries: [], timer: null };
+  pending.entries.push(entry);
+  if (pending.timer) clearTimeout(pending.timer);
+  pending.timer = setTimeout(async () => {
+    pendingEditions.delete(guildId);
+    try {
+      await publishEdition(newspaperClient, repository, guildId, "Plantão • Aconteceu na vila", pending.entries.slice(-8), false);
+    } catch (error) {
+      console.error("Falha ao enviar plantão do jornal:", error.message);
+    }
+  }, 20000);
+  pendingEditions.set(guildId, pending);
 }
 
 export async function handleNewspaperCommand(interaction, client, repository) {
@@ -99,5 +145,5 @@ export function startNewspaperWeekly(client, repository) {
       }
     }
   };
-  client.once("ready", () => { run(); setInterval(run, 60 * 60 * 1000); });
+  client.once("ready", () => { newspaperClient = client; run(); setInterval(run, 60 * 60 * 1000); });
 }
