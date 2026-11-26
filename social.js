@@ -341,11 +341,26 @@ async function publishAsRpCharacter(channel, client, character, ownerId, text) {
   const permissions = channel.permissionsFor(client.user);
   if (!permissions?.has(PermissionFlagsBits.ManageWebhooks)) throw new Error("A Momoka precisa da permissão Gerenciar Webhooks neste canal para publicar com o nome e avatar do personagem.");
   if (!permissions.has(PermissionFlagsBits.ManageMessages)) throw new Error("A Momoka também precisa da permissão Gerenciar Mensagens para apagar a mensagem original sem deixar duplicatas.");
-  const hooks = await channel.fetchWebhooks();
-  let webhook = hooks.find(item => item.owner?.id === client.user.id && item.name === "Momoka RP");
-  if (!webhook) webhook = await channel.createWebhook({ name: "Momoka RP", reason: "Publicação de personagens do sistema de RP" });
+  // Cada publicação usa um webhook próprio para o Discord não agrupar falas
+  // consecutivas do mesmo personagem e ocultar o avatar nas mensagens seguintes.
+  const webhook = await channel.createWebhook({
+    name: "Momoka RP",
+    reason: "Publicação individual de uma fala de personagem"
+  });
   const content = `<@${ownerId}> ${text}`;
-  await webhook.send({ username: character.name, avatarURL: character.imageUrl || client.user.displayAvatarURL({ extension: "png", size: 256 }), content, allowedMentions: { parse: [] } });
+  try {
+    await webhook.send({
+      username: character.name,
+      avatarURL: character.imageUrl || client.user.displayAvatarURL({ extension: "png", size: 256 }),
+      content,
+      allowedMentions: { parse: [] }
+    });
+  } finally {
+    // Apagar o webhook não apaga a mensagem já publicada.
+    await webhook.delete("Webhook temporário de publicação RP").catch(error => {
+      console.warn("Não foi possível remover o webhook temporário de RP:", error.message);
+    });
+  }
 }
 
 export async function handleRpMessage(message, client, repository) {
