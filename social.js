@@ -279,8 +279,8 @@ async function publishAction(channel, actor, target, action, repository) {
     hug: ["Um abraço inesperado!", actorName + " deu um abraço em " + targetName + "!\n\nÀs vezes, um abraço vale mais que mil palavras. 🌸"],
     pat: ["Um carinho especial!", actorName + " fez carinho na cabeça de " + targetName + ".\n\nPequenos gestos também deixam grandes lembranças. 🌸"],
     wave: ["Um cumprimento pela vila!", actorName + " acenou para " + targetName + ".\n\nUm simples olá pode começar uma boa história! 🌸"],
-    facepalm: ["Momento de vergonha alheia!", actorName + " não acreditou no que " + targetName + " acabou de aprontar.\n\nA Momoka prefere não fazer perguntas... 😂"],
-    attack: ["Um desafio inesperado!", actorName + " desafiou " + targetName + " para um confronto de brincadeira!\n\nA vila inteira ficou curiosa para saber quem leva a melhor. ⚔️"]
+    facepalm: ["Momento de vergonha alheia!", actorName + " não acreditou no que " + targetName + " acabou de fazer."],
+    attack: ["Um desafio inesperado!", actorName + " desafiou " + targetName + " para um confronto!\n\nA vila inteira ficou curiosa para saber quem leva a melhor. ⚔️"]
   };
   const [headline, story] = stories[action] || ["Um momento na vila!", formatSocialAction(actorName, targetName, action)];
   const embed = new EmbedBuilder().setColor(0xE879B5).setTitle(headline)
@@ -706,7 +706,7 @@ export async function setupSocialInteractions(client, repository) {
         if (target.bot) {
           return interaction.reply({ content: "Escolha uma pessoa, não outro bot. 🌸", ephemeral: true });
         }
-        await publishAction(interaction.channel, interaction.user, target, action);
+        await publishAction(interaction.channel, interaction.user, target, action, repository);
         const buttons = new ActionRowBuilder().addComponents(
           new ButtonBuilder().setCustomId("social:cat:interacoes:" + ownerId).setLabel("Mais interações").setEmoji("🤗").setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId("social:back:" + ownerId).setLabel("Voltar ao painel").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
