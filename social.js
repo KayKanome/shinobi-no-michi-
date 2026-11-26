@@ -3,7 +3,7 @@ import { setupMomokaChat } from "./momoka-ai.js";
 import { familyCommands, handleFamilyCommand } from "./family.js";
 import { renderFamilyTree } from "./family-tree.js";
 import { buildGamesPanel, gameSlashCommands, handleGamesCommand, handleGamesInteraction } from "./games.js";
-import { communitySlashCommands, handleCommunityCommand, startCommunityAutomation } from "./community.js";
+import { communitySlashCommands, handleCommunityCommand, handleCommunityInteraction, startCommunityAutomation } from "./community.js";
 import { newspaperSlashCommands, handleNewspaperCommand, recordNewspaperMoment } from "./newspaper.js";
 
 import {
@@ -499,6 +499,9 @@ export async function setupSocialInteractions(client, repository) {
         }
       }
 
+      if (interaction.isButton() && interaction.customId.startsWith("community:")) {
+        return await handleCommunityInteraction(interaction, repository);
+      }
       if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && interaction.customId.startsWith("rp:")) {
         const parts = interaction.customId.split(":");
         const ownerId = parts.at(-1);
