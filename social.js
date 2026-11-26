@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { setupMomokaChat } from "./momoka-ai.js";
 import { familyCommands, handleFamilyCommand } from "./family.js";
 import { renderFamilyTree } from "./family-tree.js";
 import { buildGamesPanel, gameSlashCommands, handleGamesCommand, handleGamesInteraction } from "./games.js";
@@ -355,6 +356,7 @@ export async function handleRpMessage(message, client, repository) {
 }
 
 export async function setupSocialInteractions(client, repository) {
+  setupMomokaChat(client, repository);
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     new SlashCommandBuilder().setName("personagem").setDescription("Abre sua central privada de personagens e interpretação."),
