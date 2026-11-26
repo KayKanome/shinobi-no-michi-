@@ -120,8 +120,8 @@ async function isNewspaperExcluded(client, state, channelId) {
   const stories = [];
   for (const item of entries) if (!(await isNewspaperExcluded(client, state, item.channelId))) stories.push(item);
   const visibleStories = stories.slice(-6);
-  const headline = stories.length === 1
-    ? articleHeadline(stories[0])
+  const headline = visibleStories.length === 1
+    ? articleHeadline(visibleStories[0])
     : weekly ? "Os acontecimentos que marcaram a semana"
       : "As últimas notícias da nossa vila";
   const edition = newspaperEmbed(label, headline, visibleStories, weekly);
