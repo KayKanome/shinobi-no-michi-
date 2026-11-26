@@ -321,7 +321,9 @@ function rpComposeModal(ownerId, character) {
 
 async function publishAsRpCharacter(channel, client, character, ownerId, text) {
   if (!channel?.isTextBased?.() || !channel.guild) throw new Error("Este canal não permite publicação de RP.");
-  if (!channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ManageWebhooks)) throw new Error("A Momoka precisa da permissão Gerenciar Webhooks neste canal para publicar com o nome e avatar do personagem.");
+  const permissions = channel.permissionsFor(client.user);
+  if (!permissions?.has(PermissionFlagsBits.ManageWebhooks)) throw new Error("A Momoka precisa da permissão Gerenciar Webhooks neste canal para publicar com o nome e avatar do personagem.");
+  if (!permissions.has(PermissionFlagsBits.ManageMessages)) throw new Error("A Momoka também precisa da permissão Gerenciar Mensagens para apagar a mensagem original sem deixar duplicatas.");
   const hooks = await channel.fetchWebhooks();
   let webhook = hooks.find(item => item.owner?.id === client.user.id && item.name === "Momoka RP");
   if (!webhook) webhook = await channel.createWebhook({ name: "Momoka RP", reason: "Publicação de personagens do sistema de RP" });
