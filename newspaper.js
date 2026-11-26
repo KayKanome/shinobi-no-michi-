@@ -61,7 +61,10 @@ async function publishEdition(client, repository, guildId, label, entries, weekl
   const state = await getState(repository, guildId);
   const channelId = state.newspaperChannelId;
   const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
-  if (!channel?.isTextBased?.() || !channel.guild) return false;
+  if (!channel?.isTextBased?.() || !channel.guild) {
+    console.error("Jornal automático: canal configurado não encontrado ou sem acesso.", { guildId, channelId });
+    return false;
+  }
 
   const stories = entries.slice(-6);
   const headline = stories.length === 1
@@ -92,14 +95,23 @@ export async function recordNewspaperMoment(repository, guildId, moment) {
   await saveState(repository, guildId, state);
 
   // Junta acontecimentos muito próximos em um plantão, sem transformar o jornal em spam.
-  if (!newspaperClient || !state.newspaperChannelId) return;
+  if (!newspaperClient) {
+    console.error("Jornal automático: cliente Discord ainda não está pronto.", { guildId });
+    return;
+  }
+  if (!state.newspaperChannelId) {
+    console.warn("Jornal automático: nenhum canal configurado para este servidor.", { guildId });
+    return;
+  }
   const pending = pendingEditions.get(guildId) || { entries: [], timer: null };
   pending.entries.push(entry);
   if (pending.timer) clearTimeout(pending.timer);
   pending.timer = setTimeout(async () => {
     pendingEditions.delete(guildId);
     try {
-      await publishEdition(newspaperClient, repository, guildId, "Plantão • Aconteceu na vila", pending.entries.slice(-8), false);
+      const published = await publishEdition(newspaperClient, repository, guildId, "Plantão • Aconteceu na vila", pending.entries.slice(-8), false);
+      if (published) console.log("Jornal automático publicado.", { guildId, stories: pending.entries.length });
+      else console.error("Jornal automático não publicado: confira o canal e as permissões.", { guildId });
     } catch (error) {
       console.error("Falha ao enviar plantão do jornal:", error.message);
     }
