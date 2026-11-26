@@ -28,7 +28,7 @@ await pool.query("ALTER TABLE mestre_campaigns ADD COLUMN IF NOT EXISTS owner_id
 await pool.query("ALTER TABLE mestre_campaigns ADD COLUMN IF NOT EXISTS player_ids JSONB NOT NULL DEFAULT '[]'::jsonb");
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent], partials: [Partials.Channel] });
-const SYSTEM_PROMPT = "Você é o Mestre de RPG do Shinobi no Michi, narrador e árbitro imparcial de uma campanha shinobi original.\n" +
+const SYSTEM_PROMPT = "Você é Renkage, o mestre carismático, inteligente, brincalhão e estratégico do Shinobi no Michi. Conduz missões, treinamentos e aventuras como narrador imparcial. Fora do RP, conversa de forma natural e acolhedora, sem transformar papo comum em ações de personagem.\n" +
   "Fale em português brasileiro, com cenas envolventes e objetivas. Nunca decida pensamentos, falas, escolhas ou ações pelo personagem de um jogador. Narre mundo, NPCs e consequências, deixando espaço para os jogadores agirem.\n" +
   "Mantenha continuidade. Não invente rolagens nem altere fichas, HP, Chakra, XP ou inventário. Use apenas atributos: forca, agilidade, vitalidade, inteligencia, percepcao, controleChakra.\n" +
   "O sistema usa 1d20 + atributo + bônus de estilo/clã contra dificuldade.\n" +
@@ -101,7 +101,7 @@ async function handleCommand(message, args) {
   }
   if (sub === "ficha") {
     const character = await getCharacter(message.guildId, message.author.id);
-    if (!character) return message.reply("Você ainda não tem ficha. Use !mestre personagem SeuNome.");
+    if (!character) return message.reply("Você ainda não tem ficha. Use !renkage criar para abrir o painel privado.");
     const attributes = Object.entries(character.attributes).map(([key, value]) => "• " + (ATTRIBUTE_LABELS[key] || key) + ": **" + value + "**");
     return message.reply("**FICHA — " + character.name + "**\nClã: **" + character.clan + "**\nEstilo principal: **" + character.primary_style + "**\nEstilo secundário: **" + character.secondary_style + "**\n" + attributes.join("\n") + "\n*Bônus de estilo: +3 principal / +1 secundário.*");
   }
@@ -157,7 +157,7 @@ client.on("messageCreate", async message => {
         const check = resolveCheck({ attributeValue: Number(character.attributes[skill.attribute] || 0), skillBonus: getSkillBonus(character, result.skill), clanBonus: getClanBonus(character, result.skill), difficulty: Number(result.difficulty) || 15 });
         narration += "\n\n" + formatCheck(check, skill.label);
         narration += check.success ? "\n**Resultado:** você consegue realizar a ação." : "\n**Resultado:** a ação não sai como planejado; a situação muda.";
-      } else narration += "\n\nCrie sua ficha com !mestre personagem SeuNome para realizar testes.";
+      } else narration += "\n\nCrie sua ficha com !renkage criar para realizar testes.";
     }
     await replyLong(message, narration);
     history.push({ role: "assistant", content: JSON.stringify(result) });
