@@ -194,7 +194,7 @@ async function checkSpontaneousConversation(client, repository) {
           getConversationContext(latestHuman, repository, client),
           repository.getMomokaMemories(guild.id, latestHuman.author.id).catch(() => [])
         ]);
-        const sharedMemories = memories.filter(item => item.scope === "shared").map(item => item.text).join("\\n");
+        const sharedMemories = memories.filter(item => item.scope === "shared").map(item => item.text).join("\n");
         const messages = [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "system", content: `Você está avaliando se vale a pena iniciar espontaneamente uma conversa no canal principal. Há pelo menos duas pessoas online, mas ninguém escreveu há 30 minutos. Use o histórico recente e apenas estas memórias compartilhadas confirmadas: ${sharedMemories || "nenhuma"}. Se tiver uma contribuição realmente natural, envie UMA mensagem curta, contextual, leve e sem marcar ninguém. Pode comentar um assunto anterior, trazer uma curiosidade ou propor uma conversa simples. Não diga que está monitorando o chat, não reclame do silêncio, não peça que falem com você, não anuncie missão ou jogo e não repita um tema já usado recentemente. Se não houver algo que soe natural, responda exatamente [[SILENT]]. Responda apenas com o texto da mensagem ou [[SILENT]], sem JSON.` },
