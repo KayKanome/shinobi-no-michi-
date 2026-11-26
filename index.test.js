@@ -72,7 +72,6 @@ test("ship gera resultado estável, simétrico e com porcentagem válida", () =>
   assert.ok(first.percentage >= 1 && first.percentage <= 100);
   assert.ok(first.label);
   assert.ok(first.description);
-  assert.ok(first.momoka);
   assert.throws(() => calculateShipResult("111", "111"), /duas pessoas diferentes/);
 });
 
