@@ -16,11 +16,7 @@ export const SOCIAL_ACTIONS = {
   hug: { label: "Abraçar", verb: "deu um abraço em" },
   pat: { label: "Fazer carinho", verb: "fez carinho na cabeça de" },
   wave: { label: "Cumprimentar", verb: "acenou para" },
-  dance: { label: "Dançar", verb: "dançou para" },
-  happy: { label: "Feliz", verb: "ficou feliz com" },
-  angry: { label: "Expressar raiva", verb: "fez uma expressão de raiva para" },
-  sad: { label: "Expressar tristeza", verb: "ficou triste perto de" },
-  attack: { label: "Atacar", verb: "atacou" }
+  facepalm: { label: "Face Palm", verb: "fez um facepalm por causa de" }
 };
 
 const SOCIAL_GIFS = {
@@ -54,6 +50,15 @@ const SOCIAL_GIFS = {
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575325361124806776/sailor-moon-rei.webp?ex=6b08df92&is=6b078e12&hm=732cf4fa0a6353ea96d781cd2ea172854bfce3558fc81b5df983ecfa6e8f9bd7&",
     "https://c.tenor.com/Ch4VFEjuI7IAAAAC/anime-boy.gif",
     "https://media4.giphy.com/media/v1.Y2lkPTZjMDliOTUyZjNsazlldGw1MWVwYnF2a3AwbGtuZzh3OHdzOXprMW0yY2pjNmFncSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/JmHlOSGpcuBBL74yjc/giphy.gif"
+  ],
+  facepalm: [
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575328635080941629/zukkan-the-ones-within.webp?ex=6b08e29e&is=6b07911e&hm=ef4c4f1d98dddca4f3b997cca6a276083e947cb2499278777cf5f02943e9ec90&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575328635374538752/kuroko-anime.webp?ex=6b08e29e&is=6b07911e&hm=ba160895477529174f38edcdcf79f31e1fcdfb61ad3c5ca33727400e89e9d808&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575328635697758418/case-study-of-vanitas-vanitas-no-carte.webp?ex=6b08e29e&is=6b07911e&hm=27268dd8a21114c055bc0f4c3680031920060b9094328bd886197eccc56f59ba&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575328636008013824/higuruma-hiromi-higuruma.webp?ex=6b08e29f&is=6b07911f&hm=64cd0014e811f6ac09635aa7231e7d04302aadfc4c03622d8079b01f21eed6ff&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575328636544753816/facepalm-anime.webp?ex=6b08e29f&is=6b07911f&hm=6626b086af6103f86f900986a4acc1347d039845950a42c3cb0546ab388a229e&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575328636968370206/facepalm-obonai-obonai-facepalm.webp?ex=6b08e29f&is=6b07911f&hm=fd69ce837933c924896cae43cbb6e709103e86a5d5ad6767c6041686a794137d&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575328637308371004/mermaid-melody-rina.webp?ex=6b08e29f&is=6b07911f&hm=049fa090429c40f9ceae08842302628597599fbaa15dd2a1349af1dae47f3615&"
   ]
 };
 
@@ -61,11 +66,7 @@ const SOCIAL_COMMANDS = {
   abracar: "hug",
   carinho: "pat",
   cumprimentar: "wave",
-  dancar: "dance",
-  feliz: "happy",
-  raiva: "angry",
-  tristeza: "sad",
-  atacar: "attack"
+  facepalm: "facepalm"
 };
 
 export function formatSocialAction(actorName, targetName, action) {
@@ -157,20 +158,14 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const embed = new EmbedBuilder()
       .setColor(0xE89BB5)
       .setTitle("🤗 Interações")
-      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará a ação. Os GIFs serão adicionados conforme você enviar.\n\nAtalhos: /abracar, /carinho, /cumprimentar, /dancar, /feliz, /raiva, /tristeza e /atacar.");
-    const actionsOne = new ActionRowBuilder().addComponents(
+      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará a ação. Os GIFs serão adicionados conforme você enviar.\n\nAtalhos: /abracar, /carinho, /cumprimentar e /facepalm.");
+    const actions = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:wave:" + ownerId).setLabel("Cumprimentar").setEmoji("👋").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("social:act:dance:" + ownerId).setLabel("Dançar").setEmoji("💃").setStyle(ButtonStyle.Primary)
+      new ButtonBuilder().setCustomId("social:act:facepalm:" + ownerId).setLabel("Face Palm").setEmoji("🤦").setStyle(ButtonStyle.Secondary)
     );
-    const actionsTwo = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("social:act:happy:" + ownerId).setLabel("Feliz").setEmoji("😊").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId("social:act:angry:" + ownerId).setLabel("Raiva").setEmoji("😠").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("social:act:sad:" + ownerId).setLabel("Tristeza").setEmoji("😢").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Atacar").setEmoji("✨").setStyle(ButtonStyle.Danger)
-    );
-    return { embeds: [embed], components: [actionsOne, actionsTwo, back] };
+    return { embeds: [embed], components: [actions, back] };
   }
 
   if (category === "familia") {
