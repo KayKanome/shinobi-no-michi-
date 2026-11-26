@@ -222,6 +222,10 @@ async function render(session) {
 async function saveScore(repository, id, kind, points, correct) {
   const player = await repository.getPlayer("discord:" + id);
   if (!player) return;
+  const allPlayers = await repository.getAllPlayers();
+  const scoreOf = (entry) => Number(entry.gameStats?.byGame?.[kind]?.points || 0);
+  const before = [...allPlayers].sort((a, b) => scoreOf(b) - scoreOf(a));
+  const oldPosition = before.findIndex(entry => entry.id === player.id) + 1;
   const s = player.gameStats || { totalPoints: 0, gamesPlayed: 0, byGame: {}, achievements: [] };
   s.totalPoints = (s.totalPoints || 0) + points;
   s.gamesPlayed = (s.gamesPlayed || 0) + 1;
@@ -236,7 +240,12 @@ async function saveScore(repository, id, kind, points, correct) {
   if (s.byGame[kind].correct >= 10 && !s.achievements.includes("Mestre " + GAMES[kind].name)) s.achievements.push("Mestre " + GAMES[kind].name);
   player.gameStats = s;
   await repository.savePlayer(player);
-  return { isNewRecord, previousBest, points, name: player.name || "Shinobi" };
+  const after = before.filter(entry => entry.id !== player.id);
+  after.push(player);
+  after.sort((a, b) => scoreOf(b) - scoreOf(a));
+  const newPosition = after.findIndex(entry => entry.id === player.id) + 1;
+  const passed = oldPosition > 1 && newPosition < oldPosition ? before[oldPosition - 2] : null;
+  return { isNewRecord, previousBest, points, name: player.name || "Shinobi", oldPosition, newPosition, passed };
 }
 async function end(session, extraDescription = "") {
   clearTimeout(session.timer); session.status = "finished";
@@ -245,18 +254,37 @@ async function end(session, extraDescription = "") {
     const points = session.score.get(p.id) || 0;
     const saved = await saveScore(session.repository, p.id, session.kind, points, session.correct.get(p.id) || 0);
     await recordCommunityGame(session.client, session.repository, session.guildId, p.id, points).catch(error => console.error("Falha ao registrar pontos da missão:", error.message));
-    if (saved?.isNewRecord && session.guildId && session.client) {
+    if (session.guildId && session.client && saved) {
       try {
         const muralId = await session.repository.getMuralChannel(session.guildId);
         const mural = muralId ? await session.client.channels.fetch(muralId).catch(() => null) : null;
         if (mural?.isTextBased?.()) {
-          await mural.send({
-            content: `🏅 **NOVO RECORDE PESSOAL!**\nParabéns, <@${p.id}>! Você marcou **${points} pontos** em uma única partida e superou seu recorde anterior de **${saved.previousBest} pontos**! 🌸`,
-            allowedMentions: { users: [p.id] }
-          });
+          const gameName = GAMES[session.kind]?.name || "Jogo Shinobi";
+          if (saved.isNewRecord) {
+            const record = new EmbedBuilder().setColor(0xF1C66D)
+              .setTitle("🏅 ✨ NOVO RECORDE PESSOAL! ✨")
+              .setDescription("A crônica de **Shinobi no Michi** ganhou uma nova marca!\n\n🌸 <@" + p.id + "> brilhou em **" + gameName + "** e conquistou **" + points + " pontos** em uma única partida!\n\n📜 Recorde anterior: **" + saved.previousBest + " pontos**\n🏆 Novo recorde: **" + points + " pontos**")
+              .setFooter({ text: "Mural da Vila • As conquistas dos shinobi ficam para a história" })
+              .setTimestamp();
+            await mural.send({ embeds: [record], allowedMentions: { users: [p.id] } });
+          }
+          if (saved.passed && saved.newPosition < saved.oldPosition) {
+            const enteredTopThree = saved.newPosition <= 3;
+            const title = enteredTopThree
+              ? (saved.newPosition === 1 ? "🥇 CONQUISTA DO 1º LUGAR!" : saved.newPosition === 2 ? "🥈 SUBIU PARA O 2º LUGAR!" : "🥉 ENTROU NO TOP 3!")
+              : "📈 ULTRAPASSAGEM NO RANKING!";
+            const passedId = String(saved.passed.id).replace(/^discord:/, "");
+            const description = enteredTopThree
+              ? "Que avanço extraordinário! <@" + p.id + "> ultrapassou <@" + passedId + "> e agora ocupa o **" + saved.newPosition + "º lugar** em **" + gameName + "**!\n\n🌸 Uma nova posição foi conquistada no ranking da vila!"
+              : "<@" + p.id + "> ultrapassou <@" + passedId + "> e subiu para a **" + saved.newPosition + "ª posição** no ranking de **" + gameName + "**!";
+            const promotion = new EmbedBuilder().setColor(enteredTopThree ? 0xE8B85A : 0x8DBB83)
+              .setTitle(title).setDescription(description)
+              .setFooter({ text: "Ranking de " + gameName + " • Shinobi no Michi" }).setTimestamp();
+            await mural.send({ embeds: [promotion], allowedMentions: { users: [p.id, passedId] } });
+          }
         }
       } catch (error) {
-        console.error("Não foi possível publicar o recorde no Mural da Vila:", error.message);
+        console.error("Não foi possível publicar a conquista no Mural da Vila:", error.message);
       }
     }
     result.push({ name: p.name, points });
@@ -278,12 +306,12 @@ async function soloResult(session, correct, timeout = false) {
     session.correct.set(session.hostId, session.correct.get(session.hostId) + 1);
   } else {
     const reason = timeout ? "⏰ O tempo acabou!" : "🌸 Desta vez não foi!";
-    await end(session, "\\n\\n" + reason + " A partida terminou na rodada " + session.round + ".\\n" + session.question.explanation + "\\n\\n**Pontuação conquistada nesta partida:** " + session.score.get(session.hostId) + " pts.");
+    await end(session, "\n\n" + reason + " A partida terminou na rodada " + session.round + ".\n" + session.question.explanation + "\n\n**Pontuação conquistada nesta partida:** " + session.score.get(session.hostId) + " pts.");
     return;
   }
   const embed = new EmbedBuilder().setColor(0x8DBB83)
     .setTitle("🎉 Muito bem! Você acertou!")
-    .setDescription("A Momoka está orgulhosa! +" + (10 + session.round * 2) + " pontos.\\n" + session.question.explanation + "\\n\\n**Pontuação da partida:** " + session.score.get(session.hostId) + " pts");
+    .setDescription("A Momoka está orgulhosa! +" + (10 + session.round * 2) + " pontos.\n" + session.question.explanation + "\n\n**Pontuação da partida:** " + session.score.get(session.hostId) + " pts");
   await editSession(session, { embeds: [embed], components: [new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("games:next:" + session.id + ":" + session.round).setLabel("Próxima rodada").setEmoji("➡️").setStyle(ButtonStyle.Success)
   )] });
