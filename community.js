@@ -546,7 +546,25 @@ const AUTOMATIC_QUIZ = [
   { prompt: "Qual clã é conhecido pelo Byakugan?", options: ["Nara", "Akimichi", "Hyuga", "Aburame"], answer: 2 },
   { prompt: "Quem ensinou o Rasengan a Naruto?", options: ["Kakashi", "Jiraiya", "Minato", "Iruka"], answer: 1 },
   { prompt: "Qual é o nome da raposa selada em Naruto?", options: ["Shukaku", "Matatabi", "Kurama", "Gyuki"], answer: 2 },
-  { prompt: "Quem foi o Segundo Hokage?", options: ["Hashirama", "Tobirama", "Hiruzen", "Minato"], answer: 1 }
+  { prompt: "Quem foi o Segundo Hokage?", options: ["Hashirama", "Tobirama", "Hiruzen", "Minato"], answer: 1 },
+  { prompt: "Qual é o sobrenome de Sakura?", options: ["Uchiha", "Haruno", "Hyuga", "Nara"], answer: 1 },
+  { prompt: "Quem liderou a Akatsuki usando o nome Pain?", options: ["Nagato", "Obito", "Itachi", "Kisame"], answer: 0 },
+  { prompt: "Qual técnica é a marca registrada de Minato?", options: ["Hiraishin", "Chidori", "Amaterasu", "Kirin"], answer: 0 },
+  { prompt: "Qual é a especialidade do clã Nara?", options: ["Insetos", "Expansão corporal", "Manipulação das sombras", "Marionetes"], answer: 2 },
+  { prompt: "Quem é o irmão mais novo de Itachi?", options: ["Shisui", "Sasuke", "Madara", "Obito"], answer: 1 },
+  { prompt: "Qual é o nome da invocação de Tsunade?", options: ["Manda", "Gamabunta", "Katsuyu", "Pakkun"], answer: 2 },
+  { prompt: "Qual membro da Akatsuki usa argila explosiva como arte?", options: ["Sasori", "Deidara", "Kakuzu", "Hidan"], answer: 1 },
+  { prompt: "Quem treinou Sakura durante o salto temporal?", options: ["Kurenai", "Tsunade", "Anko", "Shizune"], answer: 1 },
+  { prompt: "Qual é o nome da besta de oito caudas?", options: ["Gyuki", "Kurama", "Shukaku", "Son Goku"], answer: 0 },
+  { prompt: "Quem é o jinchūriki de Gyuki?", options: ["Gaara", "Killer B", "Yugito", "Roshi"], answer: 1 },
+  { prompt: "Qual é o nome do cão ninja de Kakashi?", options: ["Akamaru", "Pakkun", "Kiba", "Bull"], answer: 1 },
+  { prompt: "Quem criou o Edo Tensei?", options: ["Tobirama", "Hashirama", "Hiruzen", "Minato"], answer: 0 },
+  { prompt: "Qual é a habilidade característica de Shino?", options: ["Controle de insetos", "Byakugan", "Areia de ferro", "Sombras"], answer: 0 },
+  { prompt: "Qual é a natureza de chakra principal associada ao Chidori?", options: ["Fogo", "Água", "Relâmpago", "Terra"], answer: 2 },
+  { prompt: "Quem é o sensei do Time 10?", options: ["Kakashi", "Asuma", "Kurenai", "Guy"], answer: 1 },
+  { prompt: "Qual é o nome da espada de Kisame?", options: ["Kusanagi", "Samehada", "Kubikiribocho", "Hiramekarei"], answer: 1 },
+  { prompt: "Quem foi o Quarto Hokage?", options: ["Minato", "Tobirama", "Hiruzen", "Kakashi"], answer: 0 },
+  { prompt: "Qual é a kekkei genkai de Haku?", options: ["Liberação de Lava", "Liberação de Gelo", "Liberação de Madeira", "Liberação de Magnetismo"], answer: 1 }
 ];
 const automaticGameRooms = new Map();
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -583,6 +601,7 @@ async function startAutomaticGame(client, repository, guildId, channel, state) {
   });
 
   const totals = new Map();
+  let momokaPoints = 0;
   await thread.send("📜 **Regras:** responda com o número da alternativa (1 a 4) ou com o texto dela. Cada pessoa conta uma vez por rodada. Eu também vou dar meus palpites! Temos 20 segundos por pergunta.");
   for (let index = 0; index < chosen.length; index++) {
     const item = chosen[index];
@@ -602,9 +621,11 @@ async function startAutomaticGame(client, repository, guildId, channel, state) {
         if (numeric === item.answer) totals.set(message.author.id, (totals.get(message.author.id) || 0) + 1);
       }
     });
+    const momokaGuess = Math.floor(Math.random() * item.options.length);
     await wait(4500);
-    await thread.send("🌸 Meu palpite: **" + item.options[item.answer] + "**! Será que vocês também acertaram?");
+    await thread.send("🌸 Meu palpite: **" + item.options[momokaGuess] + "**! Será que vocês também acertaram?");
     await new Promise(resolve => collector.once("end", resolve));
+    if (momokaGuess === item.answer) momokaPoints += 1;
     const winners = [...answers].filter(([, correct]) => correct).length;
     await thread.send("🔎 Resposta: **" + item.options[item.answer] + "**. " + winners + " participante(s) acertaram esta rodada!");
   }
@@ -612,7 +633,7 @@ async function startAutomaticGame(client, repository, guildId, channel, state) {
   const result = ranking.length
     ? ranking.map(([id, points], i) => (i + 1) + ". <@" + id + "> — " + points + "/3").join("\n")
     : "Ninguém enviou respostas desta vez, mas valeu pela brincadeira!";
-  await thread.send("🏆 **Fim da partida!**\n" + result + "\n\nGostei de jogar com vocês! Qual pergunta foi a mais difícil? 🌸");
+  await thread.send("🏆 **Fim da partida!**\n" + result + "\n🌸 Meu placar: **" + momokaPoints + "/3**. " + (momokaPoints >= 2 ? "Hoje eu estava afiada!" : "Na próxima eu recupero esses pontos!") + "\n\nGostei de jogar com vocês! Qual pergunta foi a mais difícil? 🌸");
   automaticGameRooms.delete(guildId);
   const latest = await readState(repository, guildId);
   if (latest.active?.kind === "automatic-game") {
