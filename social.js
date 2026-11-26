@@ -148,9 +148,9 @@ function categoryPanel(category, ownerId, avatarUrl) {
   }
 
   if (category === "familia") {
-    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle("🌳 Família & Laços").setDescription("Construa sua própria história no Shinobi no Michi. A família nasce da adoção, sem limite de filhos e sem exigir casamento.\n\n**Comandos**\n/familia — árvore genealógica\n/adotar jogador — convite de adoção\n/desertar jogador — encerrar adoção\n/casar jogador — pedido de casamento\n/cancelar_casamento pessoa — encerrar vínculo\n/papel — escolher Masculino, Feminino ou Prefiro não dizer\n\nOs convites aparecem no canal e só são concluídos com consentimento.");
+    const embed=new EmbedBuilder().setColor(0x8DBB83).setTitle("🌳 Família & Laços").setDescription("Construa sua própria história no Shinobi no Michi. A família nasce da adoção, sem limite de filhos e sem exigir casamento.\n\n**Comandos**\n/familia — árvore genealógica\n/adotar jogador — convite de adoção\n/desertar jogador — deserdar um vínculo de adoção\n/casar jogador — pedido de casamento\n/cancelar_casamento pessoa — pedir divórcio\n/papel — escolher Masculino, Feminino ou Prefiro não dizer\n\nOs convites aparecem no canal e só são concluídos com consentimento.");
     const row1=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("social:family:tree:"+ownerId).setLabel("Minha família").setEmoji("🌳").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId("social:family:adopt:"+ownerId).setLabel("Adotar").setEmoji("🌱").setStyle(ButtonStyle.Primary),new ButtonBuilder().setCustomId("social:family:marry:"+ownerId).setLabel("Casamento").setEmoji("💍").setStyle(ButtonStyle.Primary));
-    const row2=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("social:family:unlink:"+ownerId).setLabel("Desvincular adoção").setEmoji("🍃").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("social:family:divorce:"+ownerId).setLabel("Encerrar casamento").setEmoji("💔").setStyle(ButtonStyle.Secondary),back.components[0]);
+    const row2=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("social:family:unlink:"+ownerId).setLabel("Deserdar").setEmoji("🍃").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("social:family:divorce:"+ownerId).setLabel("Divórcio").setEmoji("💔").setStyle(ButtonStyle.Secondary),back.components[0]);
     return {embeds:[embed],components:[row1,row2]};
   }
 
@@ -251,7 +251,7 @@ export async function setupSocialInteractions(client, repository) {
         }
         if(interaction.isButton()&&["adopt","marry","unlink","divorce"].includes(p[2])){
           const act=p[2],menu=new UserSelectMenuBuilder().setCustomId(`social:familytarget:${act}:${owner}`).setPlaceholder("Escolha a pessoa").setMinValues(1).setMaxValues(1);
-          const q={adopt:"Quem você deseja convidar para fazer parte da família?",marry:"Quem você deseja pedir em casamento?",unlink:"Com quem deseja encerrar o vínculo de adoção?",divorce:"Com quem deseja encerrar o casamento?"};
+          const q={adopt:"Quem você deseja convidar para fazer parte da família?",marry:"Quem você deseja pedir em casamento?",unlink:"Quem você deseja deserdar?",divorce:"De quem você deseja se divorciar?"};
           return interaction.reply({content:q[act],components:[new ActionRowBuilder().addComponents(menu)],ephemeral:true});
         }
         if(interaction.isUserSelectMenu()&&p[1]==="familytarget"){
@@ -266,8 +266,8 @@ export async function setupSocialInteractions(client, repository) {
             await interaction.channel.send({content:target.toString(),embeds:[e],components:[row],allowedMentions:{users:[target.id]}});
             return interaction.update({content:"Convite publicado neste canal. 🌸",components:[]});
           }
-          if(act==="unlink")return interaction.reply({content:`Confirma encerrar o vínculo de adoção com ${target}?`,components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:unlink-confirm:${owner}:${target.id}`).setLabel("Sim, desvincular").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("social:back:"+owner).setLabel("Cancelar").setStyle(ButtonStyle.Secondary))],ephemeral:true});
-          if(act==="divorce"){const ok=await repository.cancelMarriage(actor,other);return interaction.update({content:ok?"💔 Casamento encerrado. O histórico foi preservado.":"Não encontrei casamento ativo entre vocês.",components:[]});}
+          if(act==="unlink")return interaction.reply({content:`Você confirma que deseja deserdar ${target}? A árvore familiar será atualizada e o histórico será preservado.`,components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`family:unlink-confirm:${owner}:${target.id}`).setLabel("Sim, confirmar").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("social:back:"+owner).setLabel("Cancelar").setStyle(ButtonStyle.Secondary))],ephemeral:true});
+          if(act==="divorce"){const ok=await repository.cancelMarriage(actor,other);return interaction.update({content:ok?"💔 Divórcio concluído. O histórico foi preservado.":"Não encontrei casamento ativo entre vocês.",components:[]});}
         }
       }
       if(interaction.isButton()&&interaction.customId.startsWith("family:unlink-confirm:")){
