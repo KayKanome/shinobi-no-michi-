@@ -2,6 +2,179 @@ import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } f
 
 const IDLE_MS = 90 * 60 * 1000;
 const AUTO_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const OFFLINE_GRACE_MS = 5 * 60 * 1000;
+const SURPRISE_SCENARIOS = [
+  {
+    "id": "selos",
+    "title": "🔮 Os Selos da Praça estão falhando!",
+    "description": "Um selo mágico antigo perdeu o brilho. Reúnam energia nos jogos do painel para restaurar a proteção da praça.",
+    "duration": 25,
+    "goal": 100,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Os Selos da Praça estão falhando! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "gato",
+    "title": "🐈‍⬛ O gato mensageiro desapareceu!",
+    "description": "O gato que leva os bilhetes sumiu nos telhados. Ajudem a Momoka a encontrá-lo reunindo pontos nos jogos.",
+    "duration": 30,
+    "goal": 120,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** O gato mensageiro desapareceu! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "festival",
+    "title": "🏮 Preparativos do Festival das Lanternas!",
+    "description": "O festival começa em breve e as lanternas mágicas ainda precisam de energia. A aldeia conta com vocês!",
+    "duration": 35,
+    "goal": 140,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Preparativos do Festival das Lanternas! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "pergaminho",
+    "title": "📜 O pergaminho levado pelo vento!",
+    "description": "Um pergaminho escapou do arquivo e suas páginas voaram pela vila. Ajudem a recuperar todas as páginas!",
+    "duration": 40,
+    "goal": 160,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** O pergaminho levado pelo vento! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "raposa",
+    "title": "🦊 Uma raposa espiritual está aprontando!",
+    "description": "Uma raposinha espiritual escondeu objetos brilhantes pela aldeia. Ajudem a recuperá-los nos desafios!",
+    "duration": 25,
+    "goal": 180,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Uma raposa espiritual está aprontando! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "meteorito",
+    "title": "☄️ Fragmentos luminosos no bosque!",
+    "description": "Fragmentos de uma estrela cadente estão perdendo o brilho. Reúnam energia para preservá-los!",
+    "duration": 30,
+    "goal": 100,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Fragmentos luminosos no bosque! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "nevoa",
+    "title": "🌫️ A névoa misteriosa está avançando!",
+    "description": "Uma névoa mágica fictícia cobre a praça. Ativem os sinos encantados reunindo pontos nos jogos!",
+    "duration": 35,
+    "goal": 120,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** A névoa misteriosa está avançando! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "biblioteca",
+    "title": "📚 Caos na biblioteca ninja!",
+    "description": "Um jutsu travesso embaralhou os livros. Ajudem a Momoka a restaurar a ordem da biblioteca!",
+    "duration": 40,
+    "goal": 140,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Caos na biblioteca ninja! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "dragao",
+    "title": "🐉 O filhote de dragão perdeu o caminho!",
+    "description": "Um pequeno dragão amistoso não encontra o caminho de volta. Reúnam energia para iluminar a trilha!",
+    "duration": 25,
+    "goal": 160,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** O filhote de dragão perdeu o caminho! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "flores",
+    "title": "🌸 A chuva de flores começou!",
+    "description": "Uma nuvem encantada está prestes a espalhar pétalas pela aldeia. Preparem a vila para a surpresa!",
+    "duration": 30,
+    "goal": 180,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** A chuva de flores começou! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "dango",
+    "title": "🍡 Emergência na cozinha do festival!",
+    "description": "A equipe do festival precisa preparar uma bandeja gigante de dango. Ajudem reunindo pontos!",
+    "duration": 35,
+    "goal": 100,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Emergência na cozinha do festival! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "chama",
+    "title": "🔥 A chama encantada no campo de treino!",
+    "description": "Uma chama mágica fictícia surgiu após um jutsu. Reúnam energia para ativar os selos de contenção da história!",
+    "duration": 40,
+    "goal": 120,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** A chama encantada no campo de treino! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "sino",
+    "title": "🎐 O sino da montanha parou de tocar!",
+    "description": "O grande sino da montanha silenciou. Segundo a lenda, só a energia coletiva pode despertá-lo!",
+    "duration": 25,
+    "goal": 140,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** O sino da montanha parou de tocar! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "mascaras",
+    "title": "🎭 As máscaras do teatro sumiram!",
+    "description": "As máscaras da apresentação desapareceram misteriosamente. Ajudem a recuperar os itens antes do espetáculo!",
+    "duration": 30,
+    "goal": 160,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** As máscaras do teatro sumiram! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "aurora",
+    "title": "🌌 Uma aurora apareceu sobre a aldeia!",
+    "description": "Uma aurora rara está perdendo as cores. Compartilhem energia nos jogos para prolongar o fenômeno!",
+    "duration": 35,
+    "goal": 180,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Uma aurora apareceu sobre a aldeia! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "mapa",
+    "title": "🗺️ O mapa secreto foi rasgado!",
+    "description": "Um mapa antigo se partiu em vários pedaços. Ajudem a Momoka a reunir as partes e revelar o segredo!",
+    "duration": 40,
+    "goal": 100,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** O mapa secreto foi rasgado! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "peixes",
+    "title": "🐟 Os peixinhos do lago encantado!",
+    "description": "Os peixes luminosos do lago perderam o brilho. A aldeia precisa reunir energia para reencantar as águas!",
+    "duration": 25,
+    "goal": 120,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Os peixinhos do lago encantado! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "correio",
+    "title": "✉️ Uma pilha de cartas precisa ser entregue!",
+    "description": "As cartas da vila se misturaram e precisam chegar aos destinatários. Ajudem a Momoka nessa entrega especial!",
+    "duration": 30,
+    "goal": 140,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** Uma pilha de cartas precisa ser entregue! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "estrelas",
+    "title": "⭐ A constelação desapareceu!",
+    "description": "Uma constelação que guia viajantes sumiu do céu. Reúnam energia para fazê-la brilhar novamente!",
+    "duration": 35,
+    "goal": 160,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** A constelação desapareceu! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  },
+  {
+    "id": "fantasma",
+    "title": "👻 O fantasma brincalhão da hospedaria!",
+    "description": "Um espírito amistoso está escondendo as chaves da hospedaria. Participem dos jogos para convencê-lo a devolver!",
+    "duration": 40,
+    "goal": 180,
+    "successMessage": "🎉 **MISSÃO CONCLUÍDA!** O fantasma brincalhão da hospedaria! A aldeia conseguiu completar o desafio graças à ajuda de todos! 🌸"
+  }
+];
+const onlineMembers = new Map();
+const offlineSince = new Map();
+function chooseSurprise(state) {
+  const recent = state.recentScenarioIds || [];
+  const pool = SURPRISE_SCENARIOS.filter(s => !recent.includes(s.id));
+  const choices = pool.length ? pool : SURPRISE_SCENARIOS;
+  const selected = choices[Math.floor(Math.random() * choices.length)];
+  state.recentScenarioIds = [...recent, selected.id].slice(-10);
+  return selected;
+}
 const lastActivity = new Map();
 const lastActivityChannel = new Map();
 let automationStarted = false;
@@ -39,6 +212,7 @@ async function createEvent(client, repository, guildId, channel, data) {
     id: now.toString(36), title: data.title, description: data.description,
     createdAt: now, endsAt: now + data.duration * 60000, goal: data.goal, channelId: channel.id,
     progress: 0, participants: [], status: "active", lastAnnouncedProgress: 0,
+    successMessage: data.successMessage || "🎉 **MISSÃO CONCLUÍDA!** A comunidade completou o desafio! Parabéns a todos! 🌸",
     kind: data.kind || "staff"
   };
   await publishEvent(client, repository, guildId, channel, event);
@@ -126,9 +300,7 @@ export async function handleCommunityCommand(interaction, client, repository) {
       return true;
     }
     const event = await createEvent(client, repository, guildId, channel, {
-      title: "🚨 Missão surpresa: A névoa de chakra!",
-      description: "Uma névoa de chakra fictícia começou a cobrir a praça central da aldeia! A Momoka precisa da ajuda dos shinobi para estabilizar os selos antes que o fenômeno alcance toda a vila.\n\nReúnam pontos jogando os desafios do painel. Cada partida concluída ajuda a conter a névoa!",
-      duration: 30, goal: 120, kind: "momoka"
+      ...chooseSurprise(state), kind: "momoka"
     });
     const refreshed = await readState(repository, guildId);
     refreshed.lastAutoAt = Date.now();
@@ -174,7 +346,7 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
     event.status = "completed";
     await writeState(repository, guildId, state);
     const channel = await client.channels.fetch(state.eventChannelId || event.channelId).catch(() => null);
-    if (channel?.isTextBased?.()) await channel.send("🎉 **MISSÃO CONCLUÍDA!** A aldeia conseguiu estabilizar os selos e dissipar a névoa de chakra! Parabéns a todos os participantes! 🌸");
+    if (channel?.isTextBased?.()) await channel.send(event.successMessage);
     return;
   }
   if (event.progress - event.lastAnnouncedProgress >= 50) {
@@ -187,30 +359,53 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
   await writeState(repository, guildId, state);
 }
 
+export function initializeCommunityPresence(client) {
+  for (const guild of client.guilds.cache.values()) {
+    const online = new Set(guild.presences.cache.filter(p => p.status !== "offline" && p.user?.bot !== true).map(p => p.userId));
+    onlineMembers.set(guild.id, online);
+    if (online.size === 0) offlineSince.set(guild.id, Date.now());
+    else offlineSince.delete(guild.id);
+  }
+}
+
+export function updateCommunityPresence(oldPresence, newPresence) {
+  const presence = newPresence || oldPresence;
+  const guildId = presence?.guild?.id;
+  const userId = presence?.userId;
+  if (!guildId || !userId || presence.user?.bot) return;
+  const online = onlineMembers.get(guildId) || new Set();
+  if (!newPresence || newPresence.status === "offline") online.delete(userId);
+  else online.add(userId);
+  onlineMembers.set(guildId, online);
+  if (online.size === 0) offlineSince.set(guildId, Date.now());
+  else offlineSince.delete(guildId);
+}
+
 export function startCommunityAutomation(client, repository) {
   if (automationStarted) return;
   automationStarted = true;
   setInterval(async () => {
     try {
-      for (const [guildId, lastAt] of lastActivity.entries()) {
+      for (const guild of client.guilds.cache.values()) {
+        const guildId = guild.id;
         const state = await readState(repository, guildId);
         if (state.active?.status === "active" && Date.now() > state.active.endsAt) {
           state.active.status = "expired";
           await writeState(repository, guildId, state);
         }
         if (!state.autoEnabled || state.active?.status === "active") continue;
-        if (Date.now() - lastAt < IDLE_MS) continue;
+        const offlineAt = offlineSince.get(guildId);
+        if (!offlineAt || Date.now() - offlineAt < OFFLINE_GRACE_MS) continue;
         if (Date.now() - Number(state.lastAutoAt || 0) < AUTO_COOLDOWN_MS) continue;
         const channelId = state.eventChannelId || lastActivityChannel.get(guildId);
         const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
         if (!channel?.isTextBased?.()) continue;
         const event = await createEvent(client, repository, guildId, channel, {
-          title: "🌙 Missão surpresa: Um chamado na aldeia!",
-          description: "A vila ficou tranquila por um bom tempo, mas um selo antigo começou a perder energia na praça! A Momoka convoca os shinobi para uma missão coletiva.\n\nJoguem os desafios do painel em `/jogo` para reunir pontos e restaurar o selo antes do prazo!",
-          duration: 30, goal: 120, kind: "automatic"
+          ...chooseSurprise(state), kind: "automatic"
         });
         const refreshed = await readState(repository, guildId);
         refreshed.lastAutoAt = Date.now();
+        refreshed.recentScenarioIds = state.recentScenarioIds;
         await writeState(repository, guildId, refreshed);
       }
     } catch (error) {
