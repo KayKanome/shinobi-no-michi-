@@ -287,7 +287,7 @@ async function publishAction(channel, actor, target, action, repository) {
     .setDescription(story)
     .setImage(SOCIAL_GIFS[action]?.[Math.floor(Math.random() * SOCIAL_GIFS[action].length)] || null)
     .setFooter({ text: "Shinobi no Michi • Momentos da vila" }).setTimestamp();
-  await channel.send({ content: formatSocialAction(actorName, targetName, action), embeds: [embed], allowedMentions: { parse: [] } });
+  await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
   if (channel.guild?.id) await recordNewspaperMoment(repository, channel.guild.id, {
     category: "Interação social", text: actorName + " e " + targetName + ": " + headline
   });
