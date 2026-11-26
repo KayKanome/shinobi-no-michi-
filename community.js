@@ -558,10 +558,19 @@ async function startAutomaticGame(client, repository, guildId, channel, state) {
     kind: "automatic-game",
     status: "active",
     channelId: thread.id,
+    parentChannelId: channel.id,
     endsAt: Date.now() + 3 * 60 * 1000
   };
   state.lastAutoAt = Date.now();
+  const activityDay = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  if (state.activityDay !== activityDay) { state.activityDay = activityDay; state.activitiesToday = 0; }
+  state.activitiesToday = Number(state.activitiesToday || 0) + 1;
   await writeState(repository, guildId, state);
+  await recordNewspaperMoment(repository, guildId, {
+    category: "Sala de jogo surpresa",
+    text: "A Momoka abriu a sala **Quiz Shinobi** para a comunidade. A partida tem três rodadas e participação aberta.",
+    channelId: channel.id
+  });
 
   const totals = new Map();
   await thread.send("📜 **Regras:** responda com o número da alternativa (1 a 4) ou com o texto dela. Cada pessoa conta uma vez por rodada. Eu também vou dar meus palpites! Temos 20 segundos por pergunta.");
@@ -599,6 +608,11 @@ async function startAutomaticGame(client, repository, guildId, channel, state) {
   if (latest.active?.kind === "automatic-game") {
     latest.active.status = "completed";
     await writeState(repository, guildId, latest);
+    await recordNewspaperMoment(repository, guildId, {
+      category: "Partida encerrada",
+      text: "A sala **Quiz Shinobi** foi encerrada. " + totals.size + " participante(s) marcaram pontos.",
+      channelId: latest.active.parentChannelId || channel.id
+    });
   }
 }
 
@@ -613,6 +627,13 @@ export function startCommunityAutomation(client, repository) {
         if (state.active?.status === "active" && Date.now() > state.active.endsAt) {
           state.active.status = "expired";
           await writeState(repository, guildId, state);
+          if (state.active.kind !== "automatic-game") {
+            await recordNewspaperMoment(repository, guildId, {
+              category: "Evento encerrado por prazo",
+              text: "**" + state.active.title + "** terminou. Resultado: " + (state.active.progress || 0) + "/" + (state.active.goal || 0) + " pontos e " + (state.active.participants || []).length + " participantes.",
+              channelId: state.active.channelId
+            });
+          }
         }
         const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
         if (state.activityDay !== today) { state.activityDay = today; state.activitiesToday = 0; await writeState(repository, guildId, state); }
