@@ -4,7 +4,7 @@ import { familyCommands, handleFamilyCommand } from "./family.js";
 import { renderFamilyTree } from "./family-tree.js";
 import { buildGamesPanel, gameSlashCommands, handleGamesCommand, handleGamesInteraction } from "./games.js";
 import { communitySlashCommands, handleCommunityCommand, startCommunityAutomation } from "./community.js";
-import { newspaperSlashCommands, handleNewspaperCommand, recordNewspaperMoment, startNewspaperWeekly } from "./newspaper.js";
+import { newspaperSlashCommands, handleNewspaperCommand, recordNewspaperMoment } from "./newspaper.js";
 
 import {
   ActionRowBuilder,
@@ -375,7 +375,6 @@ export async function handleRpMessage(message, client, repository) {
 export async function setupSocialInteractions(client, repository) {
   setupMomokaChat(client, repository);
   startCommunityAutomation(client, repository);
-  startNewspaperWeekly(client, repository);
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     new SlashCommandBuilder().setName("personagem").setDescription("Abre sua central privada de personagens e interpretação."),
