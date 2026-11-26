@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setupSocialInteractions, handleRpMessage } from "./social.js";
+import { handleRpgCommand } from "./rpg-system.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -53,6 +54,11 @@ export function createPlayer(id, name, now = new Date()) {
     ryos: 100,
     chakra: 100,
     maxChakra: 100,
+    style: null,
+    attributes: { forca: 1, agilidade: 1, vitalidade: 1, inteligencia: 1, percepcao: 1, controleChakra: 1 },
+    attributePoints: 4,
+    puppet: null,
+    companion: null,
     missionsCompleted: 0,
     lastTrainingAt: null,
     lastMissionAt: null,
@@ -63,10 +69,12 @@ export function createPlayer(id, name, now = new Date()) {
 export function addExperience(player, amount) {
   if (!Number.isFinite(amount) || amount < 0) throw new Error("Quantidade de XP inválida.");
   player.xp += amount;
+  player.attributePoints = Number(player.attributePoints ?? 0);
   let levelsGained = 0;
   while (player.xp >= player.level * 100) {
     player.xp -= player.level * 100;
     player.level += 1;
+    player.attributePoints += 1;
     levelsGained += 1;
   }
   player.rank = rankForLevel(player.level);
@@ -112,6 +120,9 @@ export async function handleCommand({ from, text, repository, now = Date.now() }
   const parts = raw.slice(1).trim().split(/\s+/);
   const command = normalizeText(parts.shift());
   const argument = parts.join(" ").trim();
+
+  const rpgReply = await handleRpgCommand({ from, text: raw, repository, now });
+  if (rpgReply !== null) return rpgReply;
 
   if (["ajuda", "help", "menu"].includes(command)) return helpMessage();
 
