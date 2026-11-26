@@ -208,6 +208,10 @@ async function publishEvent(client, repository, guildId, channel, event) {
   const state = await readState(repository, guildId);
   state.active = event;
   await writeState(repository, guildId, state);
+  await recordNewspaperMoment(repository, guildId, {
+    category: event.kind === "momoka" ? "Missão surpresa" : "Evento comunitário",
+    text: "A Momoka anunciou **" + event.title + "**. " + String(event.description || "").slice(0, 280)
+  });
   return message;
 }
 async function createEvent(client, repository, guildId, channel, data) {
@@ -384,6 +388,10 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
     await writeState(repository, guildId, state);
     const channel = await client.channels.fetch(state.eventChannelId || event.channelId).catch(() => null);
     if (channel?.isTextBased?.()) await channel.send(event.successMessage);
+    await recordNewspaperMoment(repository, guildId, {
+      category: "Missão concluída",
+      text: "A comunidade concluiu **" + event.title + "** com " + event.progress + " pontos coletivos e " + event.participants.length + " participantes. 🌸"
+    });
     return;
   }
   if (event.progress - event.lastAnnouncedProgress >= 50) {
