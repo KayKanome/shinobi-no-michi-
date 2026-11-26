@@ -231,7 +231,7 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const embed = new EmbedBuilder()
       .setColor(0xE89BB5)
       .setTitle("🤗 Interações")
-      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará a ação. Os GIFs serão adicionados conforme você enviar.\n\nAtalhos: /abracar, /carinho, /cumprimentar, /facepalm e /atacar.");
+      .setDescription("Toda grande história começa com um pequeno gesto. Escolha uma ação, selecione outro morador e deixe a Momoka registrar o momento com uma cena animada! 🌸\n\n**Ações disponíveis:** abraço, carinho, cumprimento, facepalm e desafio.");
     const actions = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
@@ -283,10 +283,16 @@ async function publishAction(channel, actor, target, action, repository) {
     attack: ["Um desafio inesperado!", actorName + " desafiou " + targetName + " para um confronto!\n\nA vila inteira ficou curiosa para saber quem leva a melhor. ⚔️"]
   };
   const [headline, story] = stories[action] || ["Um momento na vila!", formatSocialAction(actorName, targetName, action)];
-  const embed = new EmbedBuilder().setColor(0xE879B5).setTitle(headline)
+  const colors = { hug: 0xE88DB8, pat: 0xE7A5C3, wave: 0x78B7D8, facepalm: 0xA69BCB, attack: 0xD97878 };
+  const embed = new EmbedBuilder()
+    .setColor(colors[action] || 0xE879B5)
+    .setAuthor({ name: actorName + " iniciou uma interação", iconURL: actor.displayAvatarURL({ extension: "png", size: 128 }) })
+    .setTitle(headline)
     .setDescription(story)
+    .setThumbnail(target.displayAvatarURL({ extension: "png", size: 256 }))
     .setImage(SOCIAL_GIFS[action]?.[Math.floor(Math.random() * SOCIAL_GIFS[action].length)] || null)
-    .setFooter({ text: "Shinobi no Michi • Momentos da vila" }).setTimestamp();
+    .setFooter({ text: "Shinobi no Michi • Uma cena da vida na vila" })
+    .setTimestamp();
   await channel.send({ embeds: [embed], allowedMentions: { parse: [] } });
   if (channel.guild?.id) await recordNewspaperMoment(repository, channel.guild.id, {
     category: "Interação social", text: actorName + " e " + targetName + ": " + headline
