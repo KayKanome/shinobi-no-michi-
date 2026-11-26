@@ -419,7 +419,8 @@ export async function setupSocialInteractions(client, repository) {
           await repository.setMuralChannel(interaction.guildId, channel.id);
           return interaction.reply({ content: `Mural da Vila configurado em ${channel}! A Momoka publicará ali os avisos de novos recordes pessoais. 🏅`, ephemeral: true });
         }
-        if (interaction.commandName === "jornal") return await handleNewspaperCommand(interaction, client, repository);\n        if (["missao", "evento", "atividade"].includes(interaction.commandName)) {
+        if (interaction.commandName === "jornal") return await handleNewspaperCommand(interaction, client, repository);
+        if (["missao", "evento", "atividade"].includes(interaction.commandName)) {
           return await handleCommunityCommand(interaction, client, repository);
         }
         if (interaction.commandName === "momoka-configurar") {
