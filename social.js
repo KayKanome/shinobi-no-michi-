@@ -157,7 +157,7 @@ function mainPanel(ownerId, avatarUrl) {
     new ButtonBuilder().setCustomId("social:cat:familia:" + ownerId).setLabel("Família").setEmoji("🌳").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Jogos").setEmoji("🎮").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("social:cat:eventos:" + ownerId).setLabel("Eventos").setEmoji("🏮").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("social:cat:relacionamentos:" + ownerId).setLabel("Relacionamentos").setEmoji("💞").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("social:cat:shipp:" + ownerId).setLabel("Shipp").setEmoji("💘").setStyle(ButtonStyle.Secondary)
   );
   return { embeds: [embed], components: [rowOne] };
 }
@@ -239,16 +239,18 @@ function categoryPanel(category, ownerId, avatarUrl) {
     return {embeds:[embed],components:[row1,row2]};
   }
 
-  if (category === "relacionamentos") {
+  if (category === "shipp" || category === "relacionamentos") {
     const embed = new EmbedBuilder()
       .setColor(0xD98BB8)
-      .setTitle("💞 Relacionamentos & Ships")
+      .setTitle("💘 Central de Shipp")
       .setThumbnail(avatarUrl)
-      .setDescription("Descubra que tipo de conexão fictícia a Momoka encontra entre dois personagens! Selecione duas pessoas para receber um cartão especial com porcentagem, classificação e um veredito divertido.\n\n**O resultado é uma brincadeira do RPG:** não representa sentimentos reais nem altera relacionamentos ou fichas.");
-    const ship = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("social:ship:select:" + ownerId).setLabel("Analisar um Ship").setEmoji("💘").setStyle(ButtonStyle.Primary)
-    );
-    return { embeds: [embed], components: [ship, back] };
+      .setDescription("Escolha duas pessoas do servidor para descobrir qual combinação fictícia a Momoka encontra entre elas.\n\n**Selecione exatamente dois jogadores abaixo.** O resultado é uma brincadeira do RPG: não representa sentimentos reais nem altera relacionamentos ou fichas.");
+    const picker = new UserSelectMenuBuilder()
+      .setCustomId("social:shiptarget:" + ownerId)
+      .setPlaceholder("Selecione os dois jogadores")
+      .setMinValues(2)
+      .setMaxValues(2);
+    return { embeds: [embed], components: [new ActionRowBuilder().addComponents(picker), back] };
   }
 
   if (category === "jogos") return buildGamesPanel(ownerId);
@@ -468,7 +470,7 @@ export async function setupSocialInteractions(client, repository) {
           .setMinValues(2)
           .setMaxValues(2);
         const back = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("social:cat:relacionamentos:" + ownerId).setLabel("Voltar").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
+          new ButtonBuilder().setCustomId("social:cat:shipp:" + ownerId).setLabel("Voltar").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
         );
         const embed = new EmbedBuilder().setColor(0xD98BB8).setTitle("💘 Escolha a dupla")
           .setDescription("Selecione duas pessoas do servidor. A Momoka vai preparar um cartão especial para essa dupla!");
@@ -482,7 +484,7 @@ export async function setupSocialInteractions(client, repository) {
         }
         await interaction.channel.send({ embeds: [buildShipEmbed(selected[0], selected[1])] });
         const buttons = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("social:ship:select:" + ownerId).setLabel("Analisar outra dupla").setEmoji("💘").setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId("social:cat:shipp:" + ownerId).setLabel("Analisar outra dupla").setEmoji("💘").setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId("social:cat:relacionamentos:" + ownerId).setLabel("Voltar").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
         );
         return interaction.update({ content: "O veredito da Momoka foi publicado no canal! 💞", embeds: [], components: [buttons] });
