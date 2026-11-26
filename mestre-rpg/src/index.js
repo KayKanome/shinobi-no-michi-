@@ -1,7 +1,7 @@
 import http from "node:http";
 import { Client, GatewayIntentBits, Partials } from "discord.js";
 import pg from "pg";
-import { ATTRIBUTE_LABELS, normalize, resolveCheck, formatCheck } from "./engine.js";
+import { ATTRIBUTE_LABELS, STYLES, CLANS, SKILLS, normalize, resolveCheck, getSkillBonus, getClanBonus, formatCheck } from "./engine.js";
 
 const { Pool } = pg;
 const token = process.env.MESTRE_DISCORD_TOKEN;
@@ -17,11 +17,16 @@ const pool = new Pool({ connectionString: databaseUrl, max: 5, idleTimeoutMillis
 await pool.query("CREATE TABLE IF NOT EXISTS mestre_campaigns (channel_id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, title TEXT NOT NULL, history JSONB NOT NULL DEFAULT '[]'::jsonb, active BOOLEAN NOT NULL DEFAULT TRUE, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
 await pool.query("CREATE TABLE IF NOT EXISTS mestre_characters (id BIGSERIAL PRIMARY KEY, guild_id TEXT NOT NULL, owner_id TEXT NOT NULL, name TEXT NOT NULL, attributes JSONB NOT NULL DEFAULT '{\"forca\":1,\"agilidade\":1,\"vitalidade\":1,\"inteligencia\":1,\"percepcao\":1,\"controleChakra\":1}'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), UNIQUE (guild_id, owner_id))");
 
+await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS clan TEXT NOT NULL DEFAULT 'Sem clã'");
+await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS primary_style TEXT NOT NULL DEFAULT 'Ninjutsu'");
+await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS secondary_style TEXT NOT NULL DEFAULT 'Taijutsu'");
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent], partials: [Partials.Channel] });
 const SYSTEM_PROMPT = "Você é o Mestre de RPG do Shinobi no Michi, narrador e árbitro imparcial de uma campanha shinobi original.\n" +
   "Fale em português brasileiro, com cenas envolventes e objetivas. Nunca decida pensamentos, falas, escolhas ou ações pelo personagem de um jogador. Narre mundo, NPCs e consequências, deixando espaço para os jogadores agirem.\n" +
   "Mantenha continuidade. Não invente rolagens nem altere fichas, HP, Chakra, XP ou inventário. Use apenas atributos: forca, agilidade, vitalidade, inteligencia, percepcao, controleChakra.\n" +
-  "Responda somente em JSON válido: narration (string), needs_roll (boolean), attribute (chave válida ou null), difficulty (inteiro 5 a 30 ou null), reason (string curta). Não peça teste para ações triviais.";
+  "O sistema usa 1d20 + atributo + bônus de estilo/clã contra dificuldade.\\n" +
+  "Responda somente em JSON válido: narration (string), needs_roll (boolean), skill (chave de perícia ou null), difficulty (inteiro 5 a 30 ou null), reason (string curta). Perícias: " + Object.keys(SKILLS).join(", ") + ". Não peça teste para ações triviais.";
 
 async function getCampaign(channelId) {
   const result = await pool.query("SELECT * FROM mestre_campaigns WHERE channel_id=$1 AND active=TRUE", [channelId]);
@@ -48,7 +53,7 @@ async function replyLong(message, content) {
   for (let i = 0; i < value.length; i += 1900) await message.reply(value.slice(i, i + 1900));
 }
 function helpText() {
-  return ["**MESTRE RPG — COMANDOS**", "!mestre campanha Nome — inicia campanha neste canal", "!mestre encerrar — encerra a campanha", "!mestre personagem Nome — cria ficha inicial", "!mestre ficha — consulta ficha", "!mestre teste atributo dificuldade — rola 2d8 + atributo", "!mestre ajuda — mostra ajuda", "", "Com uma campanha ativa, descreva suas ações normalmente neste canal."].join("\n");
+  return ["**MESTRE RPG — COMANDOS**", "!mestre campanha Nome — inicia campanha neste canal", "!mestre encerrar — encerra a campanha", "!mestre personagem Nome;Clã;Estilo principal;Estilo secundário — cria ficha", "!mestre ficha — consulta ficha", "!mestre teste perícia dificuldade — rola 1d20 + atributo + bônus", "!mestre ajuda — mostra ajuda", "", "Com uma campanha ativa, descreva suas ações normalmente neste canal."].join("\n");
 }
 async function handleCommand(message, args) {
   const sub = normalize(args[0]);
@@ -64,27 +69,34 @@ async function handleCommand(message, args) {
     return message.reply("Campanha encerrada neste canal. O histórico permanece salvo.");
   }
   if (sub === "personagem") {
-    const name = args.slice(1).join(" ").trim();
-    if (name.length < 2 || name.length > 24) return message.reply("Informe um nome entre 2 e 24 caracteres.");
+    const fields = args.slice(1).join(" ").split(";").map(value => value.trim());
+    const [name, clan = "Sem clã", primary = "Ninjutsu", secondary = "Taijutsu"] = fields;
+    if (!name || name.length < 2 || name.length > 24) return message.reply("Formato: !mestre personagem Nome;Clã;Estilo principal;Estilo secundário");
+    const chosenClan = CLANS.find(value => normalize(value) === normalize(clan));
+    const chosenPrimary = STYLES.find(value => normalize(value) === normalize(primary));
+    const chosenSecondary = STYLES.find(value => normalize(value) === normalize(secondary));
+    if (!chosenClan || !chosenPrimary || !chosenSecondary || normalize(chosenPrimary) === normalize(chosenSecondary)) return message.reply("Clã ou estilo inválido. Clãs: " + CLANS.join(", ") + ". Estilos: " + STYLES.join(", ") + ". Escolha dois estilos diferentes.");
     const existing = await getCharacter(message.guildId, message.author.id);
     if (existing) return message.reply("Você já possui a ficha de " + existing.name + ". Use !mestre ficha.");
-    const result = await pool.query("INSERT INTO mestre_characters (guild_id,owner_id,name) VALUES ($1,$2,$3) RETURNING *", [message.guildId, message.author.id, name]);
-    return message.reply("Ficha inicial criada para " + result.rows[0].name + ". Todos os atributos começam em 1.\nUse !mestre ficha para consultar.");
+    const result = await pool.query("INSERT INTO mestre_characters (guild_id,owner_id,name,clan,primary_style,secondary_style) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *", [message.guildId, message.author.id, name, chosenClan, chosenPrimary, chosenSecondary]);
+    return message.reply("Ficha criada para **" + result.rows[0].name + "**.\nClã: **" + chosenClan + "**\nEstilo principal: **" + chosenPrimary + "** (+3 nas perícias do estilo)\nEstilo secundário: **" + chosenSecondary + "** (+1 nas perícias do estilo)\nTodos os atributos começam em 1. Use !mestre ficha.");
   }
   if (sub === "ficha") {
     const character = await getCharacter(message.guildId, message.author.id);
     if (!character) return message.reply("Você ainda não tem ficha. Use !mestre personagem SeuNome.");
     const attributes = Object.entries(character.attributes).map(([key, value]) => "• " + (ATTRIBUTE_LABELS[key] || key) + ": **" + value + "**");
-    return message.reply("**FICHA — " + character.name + "**\n" + attributes.join("\n") + "\n*Ficha inicial de protótipo; criação completa virá depois.*");
+    return message.reply("**FICHA — " + character.name + "**\nClã: **" + character.clan + "**\nEstilo principal: **" + character.primary_style + "**\nEstilo secundário: **" + character.secondary_style + "**\n" + attributes.join("\n") + "\n*Bônus de estilo: +3 principal / +1 secundário.*");
   }
   if (sub === "teste") {
-    const attribute = normalize(args[1]).replace(/ /g, "");
-    const key = Object.keys(ATTRIBUTE_LABELS).find(item => normalize(item) === attribute || normalize(ATTRIBUTE_LABELS[item]) === attribute);
+    const rawSkill = normalize(args[1]).replace(/ /g, "");
+    const skillKey = Object.keys(SKILLS).find(item => normalize(item) === rawSkill || normalize(SKILLS[item].label).replace(/ /g, "") === rawSkill);
     const difficulty = Number(args[2]);
-    if (!key || !Number.isInteger(difficulty) || difficulty < 5 || difficulty > 30) return message.reply("Formato: !mestre teste percepcao 15. Dificuldade de 5 a 30.");
+    if (!skillKey || !Number.isInteger(difficulty) || difficulty < 5 || difficulty > 30) return message.reply("Formato: !mestre teste genjutsu 15. Dificuldade de 5 a 30.");
     const character = await getCharacter(message.guildId, message.author.id);
     if (!character) return message.reply("Crie sua ficha primeiro: !mestre personagem SeuNome.");
-    return message.reply(formatCheck(resolveCheck({ attributeValue: Number(character.attributes[key] || 0), difficulty }), ATTRIBUTE_LABELS[key]));
+    const skill = SKILLS[skillKey];
+    const check = resolveCheck({ attributeValue: Number(character.attributes[skill.attribute] || 0), skillBonus: getSkillBonus(character, skillKey), clanBonus: getClanBonus(character, skillKey), difficulty });
+    return message.reply(formatCheck(check, skill.label));
   }
   return message.reply("Comando não reconhecido. Use !mestre ajuda.");
 }
@@ -102,17 +114,18 @@ client.on("messageCreate", async message => {
   try {
     const character = await getCharacter(message.guildId, message.author.id);
     const playerContext = character
-      ? message.author.username + ": personagem " + character.name + "; atributos " + JSON.stringify(character.attributes)
+      ? message.author.username + ": personagem " + character.name + "; clã " + character.clan + "; estilo principal " + character.primary_style + "; estilo secundário " + character.secondary_style + "; atributos " + JSON.stringify(character.attributes)
       : message.author.username + ": ainda não criou ficha";
     const history = Array.isArray(campaign.history) ? campaign.history.slice(-18) : [];
     history.push({ role: "user", content: message.author.username + " diz/faz: " + content });
     await message.channel.sendTyping();
     const result = await callGM(history, playerContext);
     let narration = result.narration || "O mundo aguarda sua próxima ação.";
-    if (result.needs_roll && result.attribute && ATTRIBUTE_LABELS[result.attribute]) {
+    if (result.needs_roll && result.skill && SKILLS[result.skill]) {
       if (character) {
-        const check = resolveCheck({ attributeValue: Number(character.attributes[result.attribute] || 0), difficulty: Number(result.difficulty) || 15 });
-        narration += "\n\n" + formatCheck(check, ATTRIBUTE_LABELS[result.attribute]);
+        const skill = SKILLS[result.skill];
+        const check = resolveCheck({ attributeValue: Number(character.attributes[skill.attribute] || 0), skillBonus: getSkillBonus(character, result.skill), clanBonus: getClanBonus(character, result.skill), difficulty: Number(result.difficulty) || 15 });
+        narration += "\n\n" + formatCheck(check, skill.label);
         narration += check.success ? "\n**Resultado:** você consegue realizar a ação." : "\n**Resultado:** a ação não sai como planejado; a situação muda.";
       } else narration += "\n\nCrie sua ficha com !mestre personagem SeuNome para realizar testes.";
     }
