@@ -136,7 +136,7 @@ function shuffle(list, seed) {
   }
   return a;
 }
-function question(kind, round, seed) {
+function question(kind, round, seed, used = new Set()) {
   if (kind === "word") {
     const pool = WORDS[round - 1];
     const answer = pool[(seed + round) % pool.length];
@@ -147,7 +147,13 @@ function question(kind, round, seed) {
     return { title: "📜 Palavra Shinobi", prompt: "**Nível " + round + "/10**\nDesembaralhe as letras:\n\n# " + letters.join(" "), choices, answer: choices.indexOf(answer), explanation: "A palavra era **" + answer + "**." };
   }
   if (kind === "quiz" || kind === "who") {
-    const item = (kind === "quiz" ? QUIZ : WHO)[round - 1];
+    const bank = kind === "quiz" ? QUIZ : WHO;
+    const tier = Math.floor((round - 1) / 2);
+    const start = tier * 10;
+    const available = Array.from({ length: 10 }, (_, i) => start + i).filter(i => !used.has(kind + ":" + i));
+    const index = available.length ? available[Math.abs(seed) % available.length] : start + (round % 10);
+    used.add(kind + ":" + index);
+    const item = bank[index];
     return { title: GAMES[kind].emoji + " " + GAMES[kind].name, prompt: "**Nível " + round + "/10**\n" + item[0], choices: item[1], answer: item[2], explanation: "Resposta: **" + item[1][item[2]] + "**." };
   }
   const a = 1 + ((seed * 3 + round * 2) % (round + 5));
@@ -275,7 +281,7 @@ async function multiplayerResult(session, timeout = false) {
   session.status = "between";
   session.timer = setTimeout(async () => {
     if (session.status !== "between") return;
-    session.round++; session.question = question(session.kind, session.round, Date.now() % 100000);
+    session.round++; session.question = question(session.kind, session.round, Date.now() % 100000, session.questionUsed);
     await render(session);
   }, 2500);
 }
@@ -312,7 +318,7 @@ export async function handleGamesInteraction(interaction, repository) {
     }
     const player = await repository.getPlayer("discord:" + owner);
     const session = { id: code(), kind, mode: "solo", hostId: owner, players: new Map([[owner, { id: owner, name: player?.name || interaction.user.globalName || interaction.user.username }]]), score: new Map([[owner, 0]]), correct: new Map([[owner, 0]]), answers: new Map(), repository, round: 1, status: "playing" };
-    sessions.set(session.id, session); session.question = question(kind, 1, Date.now() % 100000);
+    session.questionUsed = new Set(); sessions.set(session.id, session); session.question = question(kind, 1, Date.now() % 100000, session.questionUsed);
     await interaction.update({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("Preparando seu desafio...")], components: [] });
     session.edit = payload => interaction.editReply(payload); await render(session); return true;
   }
@@ -347,7 +353,7 @@ export async function handleGamesInteraction(interaction, repository) {
     if (!session || session.hostId !== interaction.user.id || session.status !== "between") { await interaction.reply({ content: "Esta rodada não está disponível.", ephemeral: true }); return true; }
     await interaction.deferUpdate();
     if (session.round >= TOTAL_ROUNDS) await end(session);
-    else { session.round++; session.question = question(session.kind, session.round, Date.now() % 100000); await render(session); }
+    else { session.round++; session.question = question(session.kind, session.round, Date.now() % 100000, session.questionUsed); await render(session); }
     return true;
   }
   if (action === "rank") {
