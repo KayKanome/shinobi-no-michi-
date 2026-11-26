@@ -184,9 +184,11 @@ function isStaff(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild);
 }
 async function readState(repository, guildId) {
-  return await repository.getCommunityState(guildId) || {
+  const state = await repository.getCommunityState(guildId) || {
     eventChannelId: null, autoEnabled: true, lastAutoAt: 0, active: null
   };
+  if (state.autoEnabled === undefined) state.autoEnabled = true;
+  return state;
 }
 async function writeState(repository, guildId, state) {
   await repository.setCommunityState(guildId, state);
