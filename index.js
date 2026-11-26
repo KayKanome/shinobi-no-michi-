@@ -149,7 +149,9 @@ export async function handleCommand({ from, text, repository, now = Date.now() }
       `Experiência: ${player.xp}/${player.level * 100} XP`,
       `Chakra: ${player.chakra}/${player.maxChakra}`,
       `Ryos: ${player.ryos}`,
-      `Missões concluídas: ${player.missionsCompleted}`
+      `Missões concluídas: ${player.missionsCompleted}`,
+      `Pontuação em jogos: ${player.gameStats?.totalPoints ?? 0} pts`,
+      `Conquistas: ${(player.gameStats?.achievements ?? []).join(", ") || "Nenhuma ainda"}`
     ].join("\n");
   }
 
