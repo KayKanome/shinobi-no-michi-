@@ -227,9 +227,10 @@ async function readDatabase() {
     if (!Array.isArray(database.processedMessageIds)) database.processedMessageIds = [];
     if (!database.rpCharacters || typeof database.rpCharacters !== "object") database.rpCharacters = {};
     if (!database.rpActiveCharacters || typeof database.rpActiveCharacters !== "object") database.rpActiveCharacters = {};
+    if (!database.momokaChannels || typeof database.momokaChannels !== "object") database.momokaChannels = {};
     return database;
   } catch (error) {
-    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {} };
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {} };
     throw error;
   }
 }
@@ -265,6 +266,19 @@ const localStore = {
     await writeQueue;
     const database = await readDatabase();
     return Object.values(database.players);
+  },
+  async getMomokaChatChannel(guildId) {
+    await writeQueue;
+    const database = await readDatabase();
+    return database.momokaChannels[guildId] ?? null;
+  },
+  async setMomokaChatChannel(guildId, channelId) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      database.momokaChannels[guildId] = channelId;
+      await writeDatabase(database);
+      return channelId;
+    });
   },
   async getRpCharacters(ownerId) {
     await writeQueue;
@@ -346,6 +360,13 @@ function createPostgresStore() {
           CREATE TABLE IF NOT EXISTS shinobi_processed_messages (
             message_id TEXT PRIMARY KEY,
             processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_momoka_settings (
+            guild_id TEXT PRIMARY KEY,
+            chat_channel_id TEXT NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
         await pool.query(`
@@ -449,6 +470,16 @@ function createPostgresStore() {
       await initialize();
       const result = await pool.query("SELECT data FROM shinobi_players");
       return result.rows.map((row) => row.data);
+    },
+    async getMomokaChatChannel(guildId) {
+      await initialize();
+      const result = await pool.query("SELECT chat_channel_id FROM shinobi_momoka_settings WHERE guild_id=$1", [guildId]);
+      return result.rows[0]?.chat_channel_id ?? null;
+    },
+    async setMomokaChatChannel(guildId, channelId) {
+      await initialize();
+      await pool.query(`INSERT INTO shinobi_momoka_settings (guild_id, chat_channel_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET chat_channel_id=EXCLUDED.chat_channel_id, updated_at=NOW()`, [guildId, channelId]);
+      return channelId;
     },
     async getRpCharacters(ownerId) {
       await initialize();
