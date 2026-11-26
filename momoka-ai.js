@@ -179,6 +179,9 @@ async function checkSpontaneousConversation(client, repository) {
       const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
       const sentToday = state.momokaSocialDay === today ? Number(state.momokaSocialToday || 0) : 0;
       if (sentToday >= 2 || Date.now() - Number(state.momokaSocialLastAt || 0) < 3 * 60 * 60 * 1000) continue;
+      if (Date.now() - Number(state.momokaSocialLastCheckAt || 0) < 45 * 60 * 1000) continue;
+      state.momokaSocialLastCheckAt = Date.now();
+      await repository.setCommunityState(guild.id, state);
 
       const recent = await channel.messages.fetch({ limit: 15 }).catch(() => null);
       if (!recent?.size) continue;
