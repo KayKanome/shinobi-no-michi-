@@ -16,7 +16,8 @@ export const SOCIAL_ACTIONS = {
   hug: { label: "Abraçar", verb: "deu um abraço em" },
   pat: { label: "Fazer carinho", verb: "fez carinho na cabeça de" },
   wave: { label: "Cumprimentar", verb: "acenou para" },
-  facepalm: { label: "Face Palm", verb: "fez um facepalm por causa de" }
+  facepalm: { label: "Face Palm", verb: "fez um facepalm por causa de" },
+  attack: { label: "Atacar", verb: "lançou um ataque contra" }
 };
 
 const SOCIAL_GIFS = {
@@ -59,6 +60,15 @@ const SOCIAL_GIFS = {
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575328636544753816/facepalm-anime.webp?ex=6b08e29f&is=6b07911f&hm=6626b086af6103f86f900986a4acc1347d039845950a42c3cb0546ab388a229e&",
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575328636968370206/facepalm-obonai-obonai-facepalm.webp?ex=6b08e29f&is=6b07911f&hm=fd69ce837933c924896cae43cbb6e709103e86a5d5ad6767c6041686a794137d&",
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575328637308371004/mermaid-melody-rina.webp?ex=6b08e29f&is=6b07911f&hm=049fa090429c40f9ceae08842302628597599fbaa15dd2a1349af1dae47f3615&"
+  ],
+  attack: [
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575330400052715620/anime-purple.webp?ex=6b08e443&is=6b0792c3&hm=59bec58a738c2b3df258ce65a56386cbe095c9f8d1ea4d2b74836a1b35f56e72&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575330400509886614/bleach-anime.webp?ex=6b08e443&is=6b0792c3&hm=03ec13bba45c07a2c63494432393a1e4dd1bf670c260c77010282031c9b745af&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575330401138774033/anime-fight.webp?ex=6b08e443&is=6b0792c3&hm=1fb7198399203823addabfa26eeb41a229cf641d2ff1d77d9c7d27027c2b638b&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575330401587691763/anime-sword-art-online.webp?ex=6b08e443&is=6b0792c3&hm=a39d3bd662989042c24f9c9f6904c3fbdfbfaa2eb9e3cc44b63a5e10dfefeed2&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575330401990221904/magia-de-fuego-anime-ataque-de-fuego.webp?ex=6b08e444&is=6b0792c4&hm=c167474824e38ffc80793b32a0705cab782cd3ed9e9d3ff7179fb40153f26eea&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575330402326020157/kagura-fairy-tail.webp?ex=6b08e444&is=6b0792c4&hm=a11c36c05c531726d551f10b84d538723440c296a4afcd2690126c6cf66a694e&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575330402720022578/kirima-nagi-kick.webp?ex=6b08e444&is=6b0792c4&hm=16a37a4ca12307e1f5fbe6a3cf0965c1402cd72b61e57faaa02aa94ed3d39360&"
   ]
 };
 
@@ -66,7 +76,8 @@ const SOCIAL_COMMANDS = {
   abracar: "hug",
   carinho: "pat",
   cumprimentar: "wave",
-  facepalm: "facepalm"
+  facepalm: "facepalm",
+  atacar: "attack"
 };
 
 export function formatSocialAction(actorName, targetName, action) {
@@ -158,12 +169,13 @@ function categoryPanel(category, ownerId, avatarUrl) {
     const embed = new EmbedBuilder()
       .setColor(0xE89BB5)
       .setTitle("🤗 Interações")
-      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará a ação. Os GIFs serão adicionados conforme você enviar.\n\nAtalhos: /abracar, /carinho, /cumprimentar e /facepalm.");
+      .setDescription("Escolha uma interação e selecione uma pessoa. A publicação no canal mostrará a ação. Os GIFs serão adicionados conforme você enviar.\n\nAtalhos: /abracar, /carinho, /cumprimentar, /facepalm e /atacar.");
     const actions = new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId("social:act:hug:" + ownerId).setLabel("Abraçar").setEmoji("🫂").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:pat:" + ownerId).setLabel("Carinho").setEmoji("🐾").setStyle(ButtonStyle.Primary),
       new ButtonBuilder().setCustomId("social:act:wave:" + ownerId).setLabel("Cumprimentar").setEmoji("👋").setStyle(ButtonStyle.Primary),
-      new ButtonBuilder().setCustomId("social:act:facepalm:" + ownerId).setLabel("Face Palm").setEmoji("🤦").setStyle(ButtonStyle.Secondary)
+      new ButtonBuilder().setCustomId("social:act:facepalm:" + ownerId).setLabel("Face Palm").setEmoji("🤦").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("social:act:attack:" + ownerId).setLabel("Atacar").setEmoji("⚔️").setStyle(ButtonStyle.Danger)
     );
     return { embeds: [embed], components: [actions, back] };
   }
