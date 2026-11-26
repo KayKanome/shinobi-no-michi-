@@ -47,6 +47,13 @@ const SOCIAL_GIFS = {
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575323048163414237/hugtrip.webp?ex=6b08dd6a&is=6b078bea&hm=2397bab810cc79d0c637da3a38671ed7a265236a3c2ca9c303440964bc1d8513&",
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575323048498700388/ao-haru-ride-anime-boy.webp?ex=6b08dd6a&is=6b078bea&hm=7f19044d61ca45193a2179d9d7eb9dd4ed078d919b2b7fd38642d31b0a81506c&",
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575323776038473738/head-pat-anime-anime-girl-blush.webp?ex=6b08de18&is=6b078c98&hm=eb7467bfe0bcc0f2ff065655e4469873068c371cfa2cb4c2ea7871d554074236&"
+  ],
+  wave: [
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575325360596320446/my-man-anime.webp?ex=6b08df92&is=6b078e12&hm=d461dba98e135ece4c0689f141db8d4ae39c406cd46adb53c9bd623f2f96b244&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575325360873279559/hello-azumanga.webp?ex=6b08df92&is=6b078e12&hm=c469b39437c24893fd1a1b5df8f2b5050575dc8c322877a63b136f4da020af13&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575325361124806776/sailor-moon-rei.webp?ex=6b08df92&is=6b078e12&hm=732cf4fa0a6353ea96d781cd2ea172854bfce3558fc81b5df983ecfa6e8f9bd7&",
+    "https://c.tenor.com/Ch4VFEjuI7IAAAAC/anime-boy.gif",
+    "https://media4.giphy.com/media/v1.Y2lkPTZjMDliOTUyZjNsazlldGw1MWVwYnF2a3AwbGtuZzh3OHdzOXprMW0yY2pjNmFncSZlcD12MV9naWZzX3NlYXJjaCZjdD1n/JmHlOSGpcuBBL74yjc/giphy.gif"
   ]
 };
 
