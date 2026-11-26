@@ -180,8 +180,6 @@ async function checkSpontaneousConversation(client, repository) {
       const sentToday = state.momokaSocialDay === today ? Number(state.momokaSocialToday || 0) : 0;
       if (sentToday >= 2 || Date.now() - Number(state.momokaSocialLastAt || 0) < 3 * 60 * 60 * 1000) continue;
       if (Date.now() - Number(state.momokaSocialLastCheckAt || 0) < 45 * 60 * 1000) continue;
-      state.momokaSocialLastCheckAt = Date.now();
-      await repository.setCommunityState(guild.id, state);
 
       const recent = await channel.messages.fetch({ limit: 15 }).catch(() => null);
       if (!recent?.size) continue;
@@ -189,6 +187,8 @@ async function checkSpontaneousConversation(client, repository) {
         .filter(item => !item.author.bot && !item.webhookId && item.content?.trim())
         .sort((a, b) => b.createdTimestamp - a.createdTimestamp)[0];
       if (!latestHuman || Date.now() - latestHuman.createdTimestamp < 30 * 60 * 1000) continue;
+      state.momokaSocialLastCheckAt = Date.now();
+      await repository.setCommunityState(guild.id, state);
       if (activeChannels.has(channel.id)) continue;
 
       activeChannels.add(channel.id);
