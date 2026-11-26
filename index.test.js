@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handleCommand, addExperience, createPlayer } from "./index.js";
-import { SOCIAL_ACTIONS, formatSocialAction, isSocialPanelOwner } from "./social.js";
+import { SOCIAL_ACTIONS, formatSocialAction, isSocialPanelOwner, calculateShipResult } from "./social.js";
 
 function memoryStore() {
   const players = new Map();
@@ -53,15 +53,26 @@ test("missão concede recompensa uma vez por intervalo", async () => {
   assert.equal(player.ryos, 130);
 });
 
-test("ações sociais têm GIFs e mensagens próprias", () => {
-  assert.deepEqual(Object.keys(SOCIAL_ACTIONS), ["hug", "pat", "wave"]);
+test("ações sociais têm rótulos e mensagens próprias", () => {
+  assert.deepEqual(Object.keys(SOCIAL_ACTIONS), ["hug", "pat", "wave", "facepalm", "attack"]);
   for (const action of Object.values(SOCIAL_ACTIONS)) {
-    assert.ok(action.gifs.length >= 2);
-    assert.ok(action.gifs.every(url => url.startsWith("https://")));
+    assert.ok(action.label);
+    assert.ok(action.verb);
   }
   assert.match(formatSocialAction("Momoka", "Naruto", "hug"), /Momoka.*Naruto/);
   assert.match(formatSocialAction("Momoka", "Sakura", "pat"), /carinho/);
   assert.match(formatSocialAction("Momoka", "Sasuke", "wave"), /acenou/);
+});
+
+test("ship gera resultado estável, simétrico e com porcentagem válida", () => {
+  const first = calculateShipResult("111", "222");
+  const reversed = calculateShipResult("222", "111");
+  assert.deepEqual(first, reversed);
+  assert.ok(Number.isInteger(first.percentage));
+  assert.ok(first.percentage >= 0 && first.percentage <= 100);
+  assert.ok(first.label);
+  assert.ok(first.description);
+  assert.throws(() => calculateShipResult("111", "111"), /duas pessoas diferentes/);
 });
 
 test("painel social só pode ser controlado pelo dono", () => {
