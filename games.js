@@ -77,6 +77,7 @@ function question(kind, round, seed) {
   return { title: "🎲 Desafio dos dados", prompt: "**Nível " + round + "/10**\nQual é a soma dos dois dados?\n\n# 🎲 " + a + " + " + b + " = ?", choices, answer: choices.indexOf(String(sum)), explanation: "A soma correta é **" + sum + "**." };
 }
 function code() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
+function editSession(session, payload) { return session.mode === "solo" ? session.edit(payload) : session.message.edit(payload); }
 function buttons(session) {
   return [new ActionRowBuilder().addComponents(session.question.choices.map((value, i) =>
     new ButtonBuilder().setCustomId("games:answer:" + session.id + ":" + session.round + ":" + i).setLabel(String(value).slice(0, 80)).setStyle(ButtonStyle.Primary)
@@ -117,7 +118,7 @@ async function render(session) {
   const scores = [...session.players.values()].map(p => p.name + ": **" + (session.score.get(p.id) || 0) + " pts**").join("\n");
   const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle(session.question.title + " • Rodada " + session.round + "/10")
     .setDescription(session.question.prompt + "\n\n⏱️ **20 segundos**" + (session.mode === "multi" ? "\n\n**Placar**\n" + scores : ""));
-  await session.message.edit({ embeds: [embed], components: buttons(session) });
+  await editSession(session, { embeds: [embed], components: buttons(session) });
   session.status = "playing";
   session.timer = setTimeout(() => {
     if (session.status !== "playing") return;
@@ -152,7 +153,7 @@ async function end(session) {
   const lines = result.map((p, i) => (i + 1) + ". **" + p.name + "** — " + p.points + " pts").join("\n");
   const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle("🏆 Partida concluída!")
     .setDescription(lines + "\n\nResultado salvo no ranking! Medalhas e títulos são registrados no perfil. Ryō não é perdido por errar.");
-  await session.message.edit({ embeds: [embed], components: [] });
+  await editSession(session, { embeds: [embed], components: [] });
   sessions.delete(session.id);
   if (session.roomCode) rooms.delete(session.roomCode);
 }
@@ -168,7 +169,7 @@ async function soloResult(session, correct, timeout = false) {
     .setTitle(correct ? "🎉 Muito bem! Você acertou!" : timeout ? "⏰ O tempo acabou!" : "🌸 Boa tentativa!")
     .setDescription((correct ? "A Momoka está orgulhosa! +" + (10 + session.round * 2) + " pontos.\n" : "Continue tentando! Errar faz parte do aprendizado.\n") + session.question.explanation + "\n\n**Pontuação:** " + session.score.get(session.hostId) + " pts");
   const label = session.round === TOTAL_ROUNDS ? "Ver resultado" : "Próxima rodada";
-  await session.message.edit({ embeds: [embed], components: [new ActionRowBuilder().addComponents(
+  await editSession(session, { embeds: [embed], components: [new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("games:next:" + session.id + ":" + session.round).setLabel(label).setEmoji("➡️").setStyle(ButtonStyle.Success)
   )] });
   session.status = "between";
@@ -230,7 +231,7 @@ export async function handleGamesInteraction(interaction, repository) {
     const session = { id: code(), kind, mode: "solo", hostId: owner, players: new Map([[owner, { id: owner, name: player?.name || interaction.user.globalName || interaction.user.username }]]), score: new Map([[owner, 0]]), correct: new Map([[owner, 0]]), answers: new Map(), repository, round: 1, status: "playing" };
     sessions.set(session.id, session); session.question = question(kind, 1, Date.now() % 100000);
     await interaction.update({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("Preparando seu desafio...")], components: [] });
-    session.message = await interaction.fetchReply(); await render(session); return true;
+    session.edit = payload => interaction.editReply(payload); await render(session); return true;
   }
   if (["join", "start", "cancel"].includes(action)) {
     const room = rooms.get(p[2]);
