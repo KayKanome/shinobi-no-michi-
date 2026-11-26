@@ -1,7 +1,8 @@
 import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
+import { recordNewspaperMoment } from "./newspaper.js";
 
 const IDLE_MS = 90 * 60 * 1000;
-const AUTO_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const AUTO_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const OFFLINE_GRACE_MS = 5 * 60 * 1000;
 const SURPRISE_SCENARIOS = [
   {
@@ -184,7 +185,7 @@ function isStaff(interaction) {
 }
 async function readState(repository, guildId) {
   return await repository.getCommunityState(guildId) || {
-    eventChannelId: null, autoEnabled: false, lastAutoAt: 0, active: null
+    eventChannelId: null, autoEnabled: true, lastAutoAt: 0, active: null
   };
 }
 async function writeState(repository, guildId, state) {
