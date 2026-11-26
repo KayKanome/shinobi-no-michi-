@@ -344,7 +344,7 @@ async function publishAsRpCharacter(channel, client, character, ownerId, text) {
   const hooks = await channel.fetchWebhooks();
   let webhook = hooks.find(item => item.owner?.id === client.user.id && item.name === "Momoka RP");
   if (!webhook) webhook = await channel.createWebhook({ name: "Momoka RP", reason: "Publicação de personagens do sistema de RP" });
-  const content = `<@${ownerId}>\n\n${text}`;
+  const content = `<@${ownerId}> ${text}`;
   await webhook.send({ username: character.name, avatarURL: character.imageUrl || client.user.displayAvatarURL({ extension: "png", size: 256 }), content, allowedMentions: { parse: [] } });
 }
 
