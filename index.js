@@ -225,9 +225,10 @@ async function readDatabase() {
       throw new Error("O arquivo de dados está em um formato inválido.");
     }
     if (!Array.isArray(database.processedMessageIds)) database.processedMessageIds = [];
+    if (!database.rpCharacters || typeof database.rpCharacters !== "object") database.rpCharacters = {};
     return database;
   } catch (error) {
-    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [] };
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {} };
     throw error;
   }
 }
@@ -263,6 +264,32 @@ const localStore = {
     await writeQueue;
     const database = await readDatabase();
     return Object.values(database.players);
+  },
+  async getRpCharacters(ownerId) {
+    await writeQueue;
+    const database = await readDatabase();
+    return database.rpCharacters[ownerId] ?? [];
+  },
+  async saveRpCharacter(ownerId, character) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      const characters = database.rpCharacters[ownerId] ?? [];
+      const index = characters.findIndex(item => item.id === character.id);
+      if (index >= 0) characters[index] = character; else characters.push(character);
+      database.rpCharacters[ownerId] = characters;
+      await writeDatabase(database);
+      return character;
+    });
+  },
+  async deleteRpCharacter(ownerId, characterId) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      const characters = database.rpCharacters[ownerId] ?? [];
+      const filtered = characters.filter(item => item.id !== characterId);
+      database.rpCharacters[ownerId] = filtered;
+      await writeDatabase(database);
+      return filtered.length !== characters.length;
+    });
   },
   async claimMessage(messageId) {
     return serializeWrite(async () => {
@@ -303,6 +330,15 @@ function createPostgresStore() {
             processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_rp_characters (
+            id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL,
+            image_url TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '',
+            introduction TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await pool.query(`CREATE INDEX IF NOT EXISTS shinobi_rp_characters_owner_idx ON shinobi_rp_characters(owner_id)`);
         await pool.query(`
           CREATE TABLE IF NOT EXISTS shinobi_family_adoptions (
             id BIGSERIAL PRIMARY KEY,
@@ -388,6 +424,21 @@ function createPostgresStore() {
       await initialize();
       const result = await pool.query("SELECT data FROM shinobi_players");
       return result.rows.map((row) => row.data);
+    },
+    async getRpCharacters(ownerId) {
+      await initialize();
+      const result = await pool.query('SELECT id, name, image_url AS "imageUrl", description, introduction FROM shinobi_rp_characters WHERE owner_id=$1 ORDER BY created_at', [ownerId]);
+      return result.rows;
+    },
+    async saveRpCharacter(ownerId, character) {
+      await initialize();
+      await pool.query('INSERT INTO shinobi_rp_characters (id, owner_id, name, image_url, description, introduction) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, image_url=EXCLUDED.image_url, description=EXCLUDED.description, introduction=EXCLUDED.introduction, updated_at=NOW() WHERE shinobi_rp_characters.owner_id=EXCLUDED.owner_id', [character.id, ownerId, character.name, character.imageUrl ?? "", character.description ?? "", character.introduction ?? ""]);
+      return character;
+    },
+    async deleteRpCharacter(ownerId, characterId) {
+      await initialize();
+      const result = await pool.query("DELETE FROM shinobi_rp_characters WHERE owner_id=$1 AND id=$2", [ownerId, characterId]);
+      return result.rowCount === 1;
     },
     async claimMessage(messageId) {
       await initialize();
