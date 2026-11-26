@@ -40,12 +40,11 @@ async function getConversationContext(message, repository, client) {
   const recent = await message.channel.messages.fetch({ limit: 14 }).catch(() => null);
   const ordered = recent ? [...recent.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp) : [];
   const transcript = ordered
-    .filter(item => item.id !== message.id && !item.author.bot && item.content?.trim())
+    .filter(item => item.id !== message.id && item.content?.trim() && (!item.author.bot || item.author.id === client.user.id))
     .slice(-12)
-    .map(item => ({
-      role: "user",
-      content: `[${item.member?.displayName || item.author.globalName || item.author.username}]: ${cleanDiscordContent(item.content, client.user.id)}`
-    }));
+    .map(item => item.author.id === client.user.id
+      ? { role: "assistant", content: cleanDiscordContent(item.content, client.user.id) }
+      : { role: "user", content: `[${item.member?.displayName || item.author.globalName || item.author.username}]: ${cleanDiscordContent(item.content, client.user.id)}` });
 
   const facts = [];
   try {
