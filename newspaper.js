@@ -71,7 +71,8 @@ async function publishEdition(client, repository, guildId, label, entries, weekl
     return false;
   }
 
-  const stories = entries.slice(-6);
+  const ignoredChannels = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
+  const stories = entries.filter(item => !item.channelId || !ignoredChannels.includes(item.channelId)).slice(-6);
   const headline = stories.length === 1
     ? articleHeadline(stories[0])
     : weekly ? "Os acontecimentos que marcaram a semana"
@@ -177,7 +178,7 @@ export async function handleNewspaperCommand(interaction, client, repository) {
   if (action === "ignorar-listar") {
     const ignored = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
     await interaction.reply({
-      content: ignored.length ? "🔒 **Canais ignorados pelo Jornal:**\\n" + ignored.map(id => "<#" + id + ">").join("\\n") : "A lista de canais ignorados está vazia. 🌸",
+      content: ignored.length ? "🔒 **Canais ignorados pelo Jornal:**\n" + ignored.map(id => "<#" + id + ">").join("\n") : "A lista de canais ignorados está vazia. 🌸",
       ephemeral: true
     });
     return true;
