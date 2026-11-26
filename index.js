@@ -230,9 +230,10 @@ async function readDatabase() {
     if (!database.momokaChannels || typeof database.momokaChannels !== "object") database.momokaChannels = {};
     if (!database.muralChannels || typeof database.muralChannels !== "object") database.muralChannels = {};
     if (!database.communityStates || typeof database.communityStates !== "object") database.communityStates = {};
+    if (!database.momokaRelationships || typeof database.momokaRelationships !== "object") database.momokaRelationships = {};
     return database;
   } catch (error) {
-    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {}, muralChannels: {}, communityStates: {} };
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {}, muralChannels: {}, communityStates: {}, momokaRelationships: {} };
     throw error;
   }
 }
@@ -280,6 +281,31 @@ const localStore = {
       database.momokaChannels[guildId] = channelId;
       await writeDatabase(database);
       return channelId;
+    });
+  },
+  async getMomokaRelationship(guildId, userId) {
+    await writeQueue;
+    const database = await readDatabase();
+    return database.momokaRelationships[guildId]?.[userId] ?? null;
+  },
+  async setMomokaRelationship(guildId, userId, relationship) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      if (!database.momokaRelationships[guildId]) database.momokaRelationships[guildId] = {};
+      database.momokaRelationships[guildId][userId] = relationship;
+      await writeDatabase(database);
+      return relationship;
+    });
+  },
+  async clearMomokaRelationship(guildId, userId) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      if (database.momokaRelationships[guildId]) {
+        delete database.momokaRelationships[guildId][userId];
+        if (!Object.keys(database.momokaRelationships[guildId]).length) delete database.momokaRelationships[guildId];
+      }
+      await writeDatabase(database);
+      return true;
     });
   },
   async getMuralChannel(guildId) {
@@ -399,6 +425,12 @@ function createPostgresStore() {
         `);
         await pool.query(`ALTER TABLE shinobi_momoka_settings ADD COLUMN IF NOT EXISTS mural_channel_id TEXT`);
         await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_momoka_relationships (
+            guild_id TEXT NOT NULL, user_id TEXT NOT NULL, state JSONB NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (guild_id, user_id)
+          )
+        `);
+        await pool.query(`
           CREATE TABLE IF NOT EXISTS shinobi_community_state (
             guild_id TEXT PRIMARY KEY, state JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
@@ -514,6 +546,21 @@ function createPostgresStore() {
       await initialize();
       await pool.query(`INSERT INTO shinobi_momoka_settings (guild_id, chat_channel_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET chat_channel_id=EXCLUDED.chat_channel_id, updated_at=NOW()`, [guildId, channelId]);
       return channelId;
+    },
+    async getMomokaRelationship(guildId, userId) {
+      await initialize();
+      const result = await pool.query("SELECT state FROM shinobi_momoka_relationships WHERE guild_id=$1 AND user_id=$2", [guildId, userId]);
+      return result.rows[0]?.state ?? null;
+    },
+    async setMomokaRelationship(guildId, userId, relationship) {
+      await initialize();
+      await pool.query(`INSERT INTO shinobi_momoka_relationships (guild_id, user_id, state, updated_at) VALUES ($1, $2, $3::jsonb, NOW()) ON CONFLICT (guild_id, user_id) DO UPDATE SET state=EXCLUDED.state, updated_at=NOW()`, [guildId, userId, JSON.stringify(relationship)]);
+      return relationship;
+    },
+    async clearMomokaRelationship(guildId, userId) {
+      await initialize();
+      await pool.query("DELETE FROM shinobi_momoka_relationships WHERE guild_id=$1 AND user_id=$2", [guildId, userId]);
+      return true;
     },
     async getMuralChannel(guildId) {
       await initialize();
