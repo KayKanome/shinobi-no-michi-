@@ -243,9 +243,10 @@ async function readDatabase() {
     if (!database.muralChannels || typeof database.muralChannels !== "object") database.muralChannels = {};
     if (!database.communityStates || typeof database.communityStates !== "object") database.communityStates = {};
     if (!database.momokaRelationships || typeof database.momokaRelationships !== "object") database.momokaRelationships = {};
+    if (!database.momokaMemories || typeof database.momokaMemories !== "object") database.momokaMemories = {};
     return database;
   } catch (error) {
-    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {}, muralChannels: {}, communityStates: {}, momokaRelationships: {} };
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {}, muralChannels: {}, communityStates: {}, momokaRelationships: {}, momokaMemories: {} };
     throw error;
   }
 }
@@ -318,6 +319,24 @@ const localStore = {
       }
       await writeDatabase(database);
       return true;
+    });
+  },
+  async getMomokaMemories(guildId, userId) {
+    await writeQueue;
+    const database = await readDatabase();
+    const all = database.momokaMemories[guildId] ?? [];
+    return all.filter(item => item.scope === "shared" || item.userId === userId).slice(-30);
+  },
+  async addMomokaMemory(guildId, memory) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      if (!Array.isArray(database.momokaMemories[guildId])) database.momokaMemories[guildId] = [];
+      const list = database.momokaMemories[guildId];
+      const duplicate = list.some(item => item.scope === memory.scope && item.userId === memory.userId && item.text.toLocaleLowerCase("pt-BR") === memory.text.toLocaleLowerCase("pt-BR"));
+      if (!duplicate) list.push(memory);
+      database.momokaMemories[guildId] = list.slice(-150);
+      await writeDatabase(database);
+      return !duplicate;
     });
   },
   async getMuralChannel(guildId) {
@@ -442,6 +461,14 @@ function createPostgresStore() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), PRIMARY KEY (guild_id, user_id)
           )
         `);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_momoka_memories (
+            id BIGSERIAL PRIMARY KEY, guild_id TEXT NOT NULL, user_id TEXT,
+            scope TEXT NOT NULL CHECK (scope IN ('user','shared')), memory TEXT NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
+        await pool.query(`CREATE INDEX IF NOT EXISTS shinobi_momoka_memories_guild_idx ON shinobi_momoka_memories(guild_id, created_at DESC)`);
         await pool.query(`
           CREATE TABLE IF NOT EXISTS shinobi_community_state (
             guild_id TEXT PRIMARY KEY, state JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -572,6 +599,26 @@ function createPostgresStore() {
     async clearMomokaRelationship(guildId, userId) {
       await initialize();
       await pool.query("DELETE FROM shinobi_momoka_relationships WHERE guild_id=$1 AND user_id=$2", [guildId, userId]);
+      return true;
+    },
+    async getMomokaMemories(guildId, userId) {
+      await initialize();
+      const result = await pool.query(`SELECT user_id AS "userId", scope, memory AS text, created_at AS "createdAt"
+        FROM shinobi_momoka_memories WHERE guild_id=$1 AND (scope='shared' OR user_id=$2)
+        ORDER BY created_at DESC LIMIT 30`, [guildId, userId]);
+      return result.rows.reverse();
+    },
+    async addMomokaMemory(guildId, memory) {
+      await initialize();
+      const duplicate = await pool.query(`SELECT 1 FROM shinobi_momoka_memories
+        WHERE guild_id=$1 AND scope=$2 AND COALESCE(user_id,'')=COALESCE($3,'')
+        AND lower(memory)=lower($4) LIMIT 1`, [guildId, memory.scope, memory.userId ?? null, memory.text]);
+      if (duplicate.rowCount) return false;
+      await pool.query(`INSERT INTO shinobi_momoka_memories (guild_id,user_id,scope,memory)
+        VALUES ($1,$2,$3,$4)`, [guildId, memory.userId ?? null, memory.scope, memory.text]);
+      await pool.query(`DELETE FROM shinobi_momoka_memories WHERE id IN (
+        SELECT id FROM shinobi_momoka_memories WHERE guild_id=$1 ORDER BY created_at DESC OFFSET 150
+      )`, [guildId]);
       return true;
     },
     async getMuralChannel(guildId) {
