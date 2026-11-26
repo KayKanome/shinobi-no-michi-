@@ -101,26 +101,71 @@ function mainPanel(ownerId, avatarUrl) {
     .setColor(0xE89BB5)
     .setTitle("🌸 Cantinho Social da Momoka")
     .setDescription(
-      "Escolha uma categoria! Este painel é privado e só você pode controlá-lo.\n\n" +
-      "**🤗 Interações** — abraço, carinho, cumprimento, dança, felicidade e reações.\n" +
-      "**💞 Relacionamentos** — em desenvolvimento.\n" +
-      "**🌳 Família** — adoção, responsáveis e árvore familiar.\n" +
-      "**🎭 Roleplay** — em desenvolvimento.\n" +
-      "**🎮 Jogos** — em desenvolvimento.\n" +
-      "**🏮 Eventos** — em desenvolvimento."
+      "Escolha uma categoria! Este painel é privado e só você pode controlá-lo.\\n\\n" +
+      "**🤗 Interações** — ações sociais com outros jogadores.\\n" +
+      "**🌳 Família** — adoção, casamento e árvore genealógica.\\n" +
+      "**🎮 Jogos** — quiz, Quem sou eu?, dados e Palavra Shinobi.\\n" +
+      "**🏮 Eventos** — atividades da comunidade."
     );
 
   const rowOne = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("social:cat:interacoes:" + ownerId).setLabel("Interações").setEmoji("🤗").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("social:cat:relacionamentos:" + ownerId).setLabel("Relacionamentos").setEmoji("💞").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("social:cat:familia:" + ownerId).setLabel("Família").setEmoji("🌳").setStyle(ButtonStyle.Secondary)
-  );
-  const rowTwo = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("social:cat:roleplay:" + ownerId).setLabel("Roleplay").setEmoji("🎭").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Jogos").setEmoji("🎮").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("social:cat:familia:" + ownerId).setLabel("Família").setEmoji("🌳").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Jogos").setEmoji("🎮").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("social:cat:eventos:" + ownerId).setLabel("Eventos").setEmoji("🏮").setStyle(ButtonStyle.Secondary)
   );
-  return { embeds: [embed], components: [rowOne, rowTwo] };
+  return { embeds: [embed], components: [rowOne] };
+}
+
+const SHINOBI_GAMES = {
+  quiz: {
+    title: "🧠 Quiz Shinobi",
+    prompt: "Qual destes NÃO faz parte dos cinco elementos básicos de transformação da natureza?",
+    choices: ["Fogo", "Água", "Metal", "Vento"], answer: 2,
+    explanation: "Os cinco elementos básicos são Fogo, Vento, Relâmpago, Terra e Água."
+  },
+  who: {
+    title: "🔎 Quem sou eu?",
+    prompt: "Sou conhecido como o Ninja Copiador e fiquei famoso pelo Sharingan. Quem sou eu?",
+    choices: ["Kakashi Hatake", "Shikamaru Nara", "Might Guy", "Jiraiya"], answer: 0,
+    explanation: "É Kakashi Hatake, conhecido como o Ninja Copiador."
+  },
+  word: {
+    title: "📜 Palavra Shinobi",
+    prompt: "Desembaralhe as letras: **R A H S I N G A**. Qual palavra aparece?",
+    choices: ["Rasengan", "Sharingan", "Hokage", "Chakra"], answer: 1,
+    explanation: "SHARINGAN — uma habilidade ocular do clã Uchiha."
+  }
+};
+
+function gamesPanel(ownerId) {
+  const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle("🎮 Jogos Shinobi")
+    .setDescription("Escolha uma atividade para jogar! Nesta primeira versão, os jogos são apenas para diversão. Ryō e XP serão conectados quando o sistema de economia e progressão for desenvolvido.");
+  const row1 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("social:game:quiz:" + ownerId).setLabel("Quiz Shinobi").setEmoji("🧠").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("social:game:who:" + ownerId).setLabel("Quem sou eu?").setEmoji("🔎").setStyle(ButtonStyle.Primary)
+  );
+  const row2 = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("social:game:dice:" + ownerId).setLabel("Desafio dos dados").setEmoji("🎲").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("social:game:word:" + ownerId).setLabel("Palavra Shinobi").setEmoji("📜").setStyle(ButtonStyle.Primary)
+  );
+  const back = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("social:back:" + ownerId).setLabel("Voltar").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
+  );
+  return { embeds: [embed], components: [row1, row2, back] };
+}
+
+function questionGame(kind, ownerId) {
+  const game = SHINOBI_GAMES[kind];
+  const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle(game.title).setDescription(game.prompt);
+  const choices = new ActionRowBuilder().addComponents(game.choices.map((choice, index) =>
+    new ButtonBuilder().setCustomId("social:gameanswer:" + kind + ":" + index + ":" + ownerId)
+      .setLabel(choice).setStyle(ButtonStyle.Secondary)
+  ));
+  const back = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Voltar aos jogos").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
+  );
+  return { embeds: [embed], components: [choices, back] };
 }
 
 function categoryPanel(category, ownerId, avatarUrl) {
@@ -154,11 +199,8 @@ function categoryPanel(category, ownerId, avatarUrl) {
     return {embeds:[embed],components:[row1,row2]};
   }
 
+  if (category === "jogos") return gamesPanel(ownerId);
   const sections = {
-    relacionamentos: ["💞 Relacionamentos", " **/casar jogador** — enviar pedido.\n**/aceitar_casamento pessoa** ou **/recusar_casamento pessoa** — responder.\n**/cancelar_casamento pessoa** — qualquer um pode encerrar. O anel da loja será conectado depois."],
-    familia: ["🌳 Família", "Consulte a área Família para ver os comandos de adoção."],
-    roleplay: ["🎭 Roleplay", "As ferramentas de interpretação e personagens serão desenvolvidas em uma próxima etapa."],
-    jogos: ["🎮 Jogos", "Os minijogos e atividades interativas serão desenvolvidos em uma próxima etapa."],
     eventos: ["🏮 Eventos", "Os eventos da comunidade serão desenvolvidos em uma próxima etapa."]
   };
   const section = sections[category] || ["Categoria", "Esta área ainda está sendo preparada."];
