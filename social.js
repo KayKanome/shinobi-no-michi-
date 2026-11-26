@@ -292,15 +292,13 @@ function rpHomePanel(ownerId, characters) {
 }
 
 function rpCharacterPanel(ownerId, character) {
-  const embed = new EmbedBuilder().setColor(0xD98BB8).setTitle(`🎭 ${character.name}`).setDescription(character.description || "Sem descrição cadastrada.").addFields({ name: "Apresentação", value: character.introduction || "Nenhuma apresentação cadastrada." }).setFooter({ text: "Personagem selecionado • Painel privado" });
+  const embed = new EmbedBuilder().setColor(0xD98BB8).setTitle(`🎭 ${character.name}`).setDescription((character.description || "Sem descrição cadastrada.") + "\n\n**Personagem ativo para RP.** Para interpretar, escreva `RP.` seguido da sua mensagem no canal.").addFields({ name: "Apresentação", value: character.introduction || "Nenhuma apresentação cadastrada." }).setFooter({ text: "Personagem ativo • Painel privado" });
   if (character.imageUrl) embed.setThumbnail(character.imageUrl);
-  const compose = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rp:compose:${character.id}:${ownerId}`).setLabel("Interpretar").setEmoji("🎭").setStyle(ButtonStyle.Primary));
   const manage = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`rp:edit:${character.id}:${ownerId}`).setLabel("Editar").setEmoji("✏️").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rp:delete:${character.id}:${ownerId}`).setLabel("Excluir").setEmoji("🗑️").setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId(`rp:home:${ownerId}`).setLabel("Trocar personagem").setEmoji("🔄").setStyle(ButtonStyle.Secondary));
-  return { embeds: [embed], components: [compose, manage] };
+  return { embeds: [embed], components: [manage] };
 }
 
 function rpCharacterModal(ownerId, character = null) {
@@ -329,6 +327,29 @@ async function publishAsRpCharacter(channel, client, character, ownerId, text) {
   if (!webhook) webhook = await channel.createWebhook({ name: "Momoka RP", reason: "Publicação de personagens do sistema de RP" });
   const content = `<@${ownerId}>\n\n${text}`;
   await webhook.send({ username: character.name, avatarURL: character.imageUrl || client.user.displayAvatarURL({ extension: "png", size: 256 }), content, allowedMentions: { parse: [] } });
+}
+
+export async function handleRpMessage(message, client, repository) {
+  const match = String(message.content ?? "").trimStart().match(/^RP\.\s*([\s\S]*)$/i);
+  if (!match) return false;
+  const text = match[1].trim();
+  if (!text) {
+    await message.reply({ content: "Depois de `RP.` escreva a interpretação que deseja publicar.", allowedMentions: { repliedUser: false } });
+    return true;
+  }
+  const character = await repository.getActiveRpCharacter(message.author.id);
+  if (!character) {
+    await message.reply({ content: "Você ainda não escolheu um personagem ativo. Use `/personagem` e selecione um personagem antes de enviar `RP.`.", allowedMentions: { repliedUser: false } });
+    return true;
+  }
+  try {
+    await publishAsRpCharacter(message.channel, client, character, message.author.id, text);
+    await message.delete();
+  } catch (error) {
+    console.error("Falha ao publicar interpretação RP:", error.message);
+    await message.reply({ content: error.message || "Não consegui publicar sua interpretação. Verifique as permissões do canal.", allowedMentions: { repliedUser: false } }).catch(() => {});
+  }
+  return true;
 }
 
 export async function setupSocialInteractions(client, repository) {
@@ -411,6 +432,7 @@ export async function setupSocialInteractions(client, repository) {
         if (interaction.isStringSelectMenu() && parts[1] === "choose") {
           const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === interaction.values[0]);
           if (!character) return interaction.reply({ content: "Não encontrei esse personagem. Abra /personagem novamente.", ephemeral: true });
+          await repository.setActiveRpCharacter(ownerId, character.id);
           return interaction.update(rpCharacterPanel(ownerId, character));
         }
         if (interaction.isButton() && parts[1] === "edit") {
@@ -437,6 +459,7 @@ export async function setupSocialInteractions(client, repository) {
           if (name.length < 2) return interaction.reply({ content: "O nome precisa ter pelo menos 2 caracteres.", ephemeral: true });
           const character = { id: existing?.id || randomUUID(), name, imageUrl, description: interaction.fields.getTextInputValue("description").trim(), introduction: interaction.fields.getTextInputValue("intro").trim() };
           await repository.saveRpCharacter(ownerId, character);
+          await repository.setActiveRpCharacter(ownerId, character.id);
           return interaction.reply({ ...rpCharacterPanel(ownerId, character), ephemeral: true });
         }
         if (interaction.isModalSubmit() && parts[1] === "publish") {
