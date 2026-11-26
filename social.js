@@ -35,6 +35,18 @@ const SOCIAL_GIFS = {
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575320800154619924/hugs-cute-hugs-gif.webp?ex=6b08db52&is=6b0789d2&hm=1b5f9a08c26d84c6e665857f88c8b00d0a1bca8cef9bb16bd60494c29c31bbe7&",
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575320800465256578/anime-hug.webp?ex=6b08db52&is=6b0789d2&hm=7c61600cedd011e1cf266723aaa59a968ea46addf596bece91793d9d7d3b2fdb&",
     "https://cdn.discordapp.com/attachments/1440733156008399080/1575320800783900752/hug-anime.gif?ex=6b08db52&is=6b0789d2&hm=d3a2217b7d984a37b41c4bc68cbd8c40df292827b6bd7bfbbe42db0b0329a5ac&"
+  ],
+  pat: [
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323045436858480/raphtalia-pat.webp?ex=6b08dd6a&is=6b078bea&hm=b270f8e3d85ec6b24ab3cb580cc6cadb81323fbb4609d406aaa45c3642a8b266&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323045868994661/anime-good-girl.webp?ex=6b08dd6a&is=6b078bea&hm=295559f3fd90ac91aa67c6aa409d66567678422a877182674f1556e295900101&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323046212796507/hlop.webp?ex=6b08dd6a&is=6b078bea&hm=ffb2fb1f6af4cef9d23c823c30e100f6c30e85ef4c5609668badd9b18e4fdd5d&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323046523310180/pat-anime.webp?ex=6b08dd6a&is=6b078bea&hm=7064352fb0a4c6c189522348d40de2b2a4e685717b00439fd89f15ce3ac36ad7&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323047194267728/pat-pat.webp?ex=6b08dd6a&is=6b078bea&hm=e03b900dd506748872794a7c62a8ad65cd38883357d72b4047c2fab1b3551a32&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323047517224990/aharen-san-wa-hakarenai-aharen-is-indecipherable.webp?ex=6b08dd6a&is=6b078bea&hm=16aa0a037cef1ce3e0b32672cd6dfbd226c149cc36d836ef5431cdd4a7590099&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323047857225788/anime.webp?ex=6b08dd6a&is=6b078bea&hm=bfbbc66444ea0f50f4129d61fd8baed0884f7082c52915d5353797b71f465d41&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323048163414237/hugtrip.webp?ex=6b08dd6a&is=6b078bea&hm=2397bab810cc79d0c637da3a38671ed7a265236a3c2ca9c303440964bc1d8513&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323048498700388/ao-haru-ride-anime-boy.webp?ex=6b08dd6a&is=6b078bea&hm=7f19044d61ca45193a2179d9d7eb9dd4ed078d919b2b7fd38642d31b0a81506c&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575323776038473738/head-pat-anime-anime-girl-blush.webp?ex=6b08de18&is=6b078c98&hm=eb7467bfe0bcc0f2ff065655e4469873068c371cfa2cb4c2ea7871d554074236&"
   ]
 };
 
