@@ -91,6 +91,57 @@ export function isSocialPanelOwner(customId, userId) {
   return Boolean(ownerId && ownerId === String(userId));
 }
 
+const SHIP_TYPES = [
+  { label: "Amizade lendária", emoji: "🤝", color: 0x62B6A5, description: "Uma dupla que combina para apoiar um ao outro e viver grandes aventuras." },
+  { label: "Rivais declarados", emoji: "⚡", color: 0xE6A23C, description: "Competição, provocações e uma vontade enorme de superar o outro." },
+  { label: "Inimigos jurados", emoji: "🌩️", color: 0xC85B65, description: "A Momoka sentiu uma energia de rivalidade digna de uma grande saga." },
+  { label: "Parceiros de missão", emoji: "🥷", color: 0x6798C9, description: "Uma equipe que pode transformar qualquer missão em uma história memorável." },
+  { label: "Caos em dobro", emoji: "🎭", color: 0xA58AD2, description: "Juntos, vocês provavelmente vão aprontar — e a Momoka quer assistir de camarote." },
+  { label: "Química de anime", emoji: "✨", color: 0xD98BB8, description: "Uma sintonia especial, digna de um momento marcante de anime." },
+  { label: "Ship de novela", emoji: "💗", color: 0xE879A8, description: "A Momoka encontrou material para um ship fictício cheio de reviravoltas!" },
+  { label: "Dupla improvável", emoji: "🌸", color: 0xD79B76, description: "Diferentes do próprio jeito, mas com potencial para surpreender." }
+];
+
+function stableHash(value) {
+  let hash = 2166136261;
+  for (const character of String(value)) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+export function calculateShipResult(firstId, secondId) {
+  if (!firstId || !secondId || String(firstId) === String(secondId)) {
+    throw new Error("Escolha duas pessoas diferentes para analisar o ship.");
+  }
+  const pair = [String(firstId), String(secondId)].sort().join(":");
+  const percentage = stableHash(pair + "|momoka-score") % 101;
+  const type = SHIP_TYPES[stableHash(pair + "|momoka-type") % SHIP_TYPES.length];
+  return { percentage, ...type };
+}
+
+export function buildShipEmbed(first, second) {
+  const result = calculateShipResult(first.id, second.id);
+  const firstName = first.globalName || first.username;
+  const secondName = second.globalName || second.username;
+  const filled = Math.round(result.percentage / 10);
+  const meter = "🩷".repeat(filled) + "🤍".repeat(10 - filled);
+  return new EmbedBuilder()
+    .setColor(result.color)
+    .setTitle("💞 Laços do Destino")
+    .setDescription("A Momoka consultou os arquivos secretos da vila e analisou a energia desta dupla...")
+    .setAuthor({ name: firstName, iconURL: first.displayAvatarURL({ extension: "png", size: 128 }) })
+    .setThumbnail(second.displayAvatarURL({ extension: "png", size: 256 }))
+    .addFields(
+      { name: "🌸 Dupla analisada", value: "**" + firstName + "**  ×  **" + secondName + "**" },
+      { name: "💗 Sintonia da dupla", value: "**" + result.percentage + "%**\n" + meter, inline: true },
+      { name: "🔮 Veredito da Momoka", value: result.emoji + " **" + result.label + "**\n" + result.description }
+    )
+    .setFooter({ text: "Shinobi no Michi • Resultado fictício para diversão" })
+    .setTimestamp();
+}
+
 
 
 function mainPanel(ownerId, avatarUrl) {
@@ -105,7 +156,8 @@ function mainPanel(ownerId, avatarUrl) {
     new ButtonBuilder().setCustomId("social:cat:interacoes:" + ownerId).setLabel("Interações").setEmoji("🤗").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("social:cat:familia:" + ownerId).setLabel("Família").setEmoji("🌳").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Jogos").setEmoji("🎮").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("social:cat:eventos:" + ownerId).setLabel("Eventos").setEmoji("🏮").setStyle(ButtonStyle.Secondary)
+    new ButtonBuilder().setCustomId("social:cat:eventos:" + ownerId).setLabel("Eventos").setEmoji("🏮").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("social:cat:relacionamentos:" + ownerId).setLabel("Relacionamentos").setEmoji("💞").setStyle(ButtonStyle.Secondary)
   );
   return { embeds: [embed], components: [rowOne] };
 }
@@ -187,6 +239,18 @@ function categoryPanel(category, ownerId, avatarUrl) {
     return {embeds:[embed],components:[row1,row2]};
   }
 
+  if (category === "relacionamentos") {
+    const embed = new EmbedBuilder()
+      .setColor(0xD98BB8)
+      .setTitle("💞 Relacionamentos & Ships")
+      .setThumbnail(avatarUrl)
+      .setDescription("Descubra que tipo de conexão fictícia a Momoka encontra entre dois personagens! Selecione duas pessoas para receber um cartão especial com porcentagem, classificação e um veredito divertido.\n\n**O resultado é uma brincadeira do RPG:** não representa sentimentos reais nem altera relacionamentos ou fichas.");
+    const ship = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("social:ship:select:" + ownerId).setLabel("Analisar um Ship").setEmoji("💘").setStyle(ButtonStyle.Primary)
+    );
+    return { embeds: [embed], components: [ship, back] };
+  }
+
   if (category === "jogos") return buildGamesPanel(ownerId);
   const sections = {
     eventos: ["🏮 Eventos", "Os eventos da comunidade serão desenvolvidos em uma próxima etapa."]
@@ -215,6 +279,9 @@ export async function setupSocialInteractions(client, repository) {
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     ...familyCommands(),
     ...gameSlashCommands,
+    new SlashCommandBuilder().setName("ship").setDescription("Descubra a combinação fictícia entre dois personagens.")
+      .addUserOption(option => option.setName("jogador1").setDescription("Primeira pessoa").setRequired(true))
+      .addUserOption(option => option.setName("jogador2").setDescription("Segunda pessoa").setRequired(true)),
     ...Object.entries(SOCIAL_COMMANDS).map(([commandName, action]) =>
       new SlashCommandBuilder()
         .setName(commandName)
@@ -242,6 +309,15 @@ export async function setupSocialInteractions(client, repository) {
         if (["jogo", "ranking_jogos"].includes(interaction.commandName)) {
           return await handleGamesCommand(interaction, repository);
         }
+        if (interaction.commandName === "ship") {
+          const first = interaction.options.getUser("jogador1");
+          const second = interaction.options.getUser("jogador2");
+          if (!first || !second || first.id === second.id || first.bot || second.bot) {
+            return interaction.reply({ content: "Escolha duas pessoas diferentes — e não bots — para o ship. 🌸", ephemeral: true });
+          }
+          return interaction.reply({ embeds: [buildShipEmbed(first, second)] });
+        }
+
         if (interaction.commandName === "social") {
           await interaction.deferReply({ ephemeral: true });
           const avatar = client.user.displayAvatarURL({ extension: "png", size: 256 });
@@ -383,6 +459,33 @@ export async function setupSocialInteractions(client, repository) {
           new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Voltar aos jogos").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
         );
         return interaction.update({ embeds: [embed], components: [row] });
+      }
+
+      if (interaction.isButton() && parts[1] === "ship" && parts[2] === "select") {
+        const picker = new UserSelectMenuBuilder()
+          .setCustomId("social:shiptarget:" + ownerId)
+          .setPlaceholder("Selecione exatamente duas pessoas")
+          .setMinValues(2)
+          .setMaxValues(2);
+        const back = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("social:cat:relacionamentos:" + ownerId).setLabel("Voltar").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
+        );
+        const embed = new EmbedBuilder().setColor(0xD98BB8).setTitle("💘 Escolha a dupla")
+          .setDescription("Selecione duas pessoas do servidor. A Momoka vai preparar um cartão especial para essa dupla!");
+        return interaction.update({ embeds: [embed], components: [new ActionRowBuilder().addComponents(picker), back] });
+      }
+
+      if (interaction.isUserSelectMenu() && parts[1] === "shiptarget") {
+        const selected = Array.from(interaction.users.values());
+        if (selected.length !== 2 || selected[0].id === selected[1].id || selected.some(user => user.bot)) {
+          return interaction.reply({ content: "Selecione exatamente duas pessoas diferentes que não sejam bots. 🌸", ephemeral: true });
+        }
+        await interaction.channel.send({ embeds: [buildShipEmbed(selected[0], selected[1])] });
+        const buttons = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("social:ship:select:" + ownerId).setLabel("Analisar outra dupla").setEmoji("💘").setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId("social:cat:relacionamentos:" + ownerId).setLabel("Voltar").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
+        );
+        return interaction.update({ content: "O veredito da Momoka foi publicado no canal! 💞", embeds: [], components: [buttons] });
       }
 
       if (interaction.isButton() && parts[1] === "act") {
