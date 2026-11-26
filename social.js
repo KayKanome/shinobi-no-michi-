@@ -276,11 +276,11 @@ async function publishAction(channel, actor, target, action, repository) {
   const actorName = actor.globalName || actor.username;
   const targetName = target.globalName || target.username;
   const stories = {
-    hug: ["Um abraço inesperado!", actorName + " deu um abraço em " + targetName + "!\\n\\nÀs vezes, um abraço vale mais que mil palavras. 🌸"],
-    pat: ["Um carinho especial!", actorName + " fez carinho na cabeça de " + targetName + ".\\n\\nPequenos gestos também deixam grandes lembranças. 🌸"],
-    wave: ["Um cumprimento pela vila!", actorName + " acenou para " + targetName + ".\\n\\nUm simples olá pode começar uma boa história! 🌸"],
-    facepalm: ["Momento de vergonha alheia!", actorName + " não acreditou no que " + targetName + " acabou de aprontar.\\n\\nA Momoka prefere não fazer perguntas... 😂"],
-    attack: ["Um desafio inesperado!", actorName + " desafiou " + targetName + " para um confronto de brincadeira!\\n\\nA vila inteira ficou curiosa para saber quem leva a melhor. ⚔️"]
+    hug: ["Um abraço inesperado!", actorName + " deu um abraço em " + targetName + "!\n\nÀs vezes, um abraço vale mais que mil palavras. 🌸"],
+    pat: ["Um carinho especial!", actorName + " fez carinho na cabeça de " + targetName + ".\n\nPequenos gestos também deixam grandes lembranças. 🌸"],
+    wave: ["Um cumprimento pela vila!", actorName + " acenou para " + targetName + ".\n\nUm simples olá pode começar uma boa história! 🌸"],
+    facepalm: ["Momento de vergonha alheia!", actorName + " não acreditou no que " + targetName + " acabou de aprontar.\n\nA Momoka prefere não fazer perguntas... 😂"],
+    attack: ["Um desafio inesperado!", actorName + " desafiou " + targetName + " para um confronto de brincadeira!\n\nA vila inteira ficou curiosa para saber quem leva a melhor. ⚔️"]
   };
   const [headline, story] = stories[action] || ["Um momento na vila!", formatSocialAction(actorName, targetName, action)];
   const embed = new EmbedBuilder().setColor(0xE879B5).setTitle(headline)
