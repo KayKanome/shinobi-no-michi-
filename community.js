@@ -71,7 +71,8 @@ export const communitySlashCommands = [
       .addIntegerOption(o => o.setName("meta").setDescription("Pontos coletivos necessários").setMinValue(10).setMaxValue(100000).setRequired(true)))
     .addSubcommand(s => s.setName("configurar").setDescription("Escolhe o canal dos eventos automáticos.")
       .addChannelOption(o => o.setName("canal").setDescription("Canal de eventos").addChannelTypes(ChannelType.GuildText).setRequired(true)))
-    .addSubcommand(s => s.setName("parar").setDescription("Encerra o evento ativo.")),
+    .addSubcommand(s => s.setName("parar").setDescription("Encerra o evento ativo."))
+    .addSubcommand(s => s.setName("forcar").setDescription("Publica um evento surpresa imediatamente.")),
 ];
 
 export async function handleCommunityCommand(interaction, client, repository) {
@@ -104,7 +105,7 @@ export async function handleCommunityCommand(interaction, client, repository) {
     return true;
   }
   if ((interaction.commandName === "missao" && action === "parar") || (interaction.commandName === "evento" && action === "parar")) {
-    if (!state.active || state.active.status !== "active") {
+    if (!state.active || state.active.status !== "active" || Date.now() > state.active.endsAt) {
       await interaction.reply({ content: "Não há missão ou evento ativo neste momento.", ephemeral: true });
       return true;
     }
@@ -113,14 +114,14 @@ export async function handleCommunityCommand(interaction, client, repository) {
     await interaction.reply({ content: "A missão/evento ativo foi encerrado. 🌸", ephemeral: true });
     return true;
   }
-  if (interaction.commandName === "missao" && action === "forcar") {
+  if ((interaction.commandName === "missao" && action === "forcar") || (interaction.commandName === "evento" && action === "forcar")) {
     const channelId = state.eventChannelId || interaction.channelId;
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (!channel?.isTextBased?.()) {
       await interaction.reply({ content: "Não encontrei um canal de texto para publicar. Use /evento configurar primeiro.", ephemeral: true });
       return true;
     }
-    if (state.active?.status === "active") {
+    if (state.active?.status === "active" && Date.now() <= state.active.endsAt) {
       await interaction.reply({ content: "Já existe uma missão/evento ativo. Encerre-o antes de lançar outro.", ephemeral: true });
       return true;
     }
@@ -129,13 +130,14 @@ export async function handleCommunityCommand(interaction, client, repository) {
       description: "Uma névoa de chakra fictícia começou a cobrir a praça central da aldeia! A Momoka precisa da ajuda dos shinobi para estabilizar os selos antes que o fenômeno alcance toda a vila.\n\nReúnam pontos jogando os desafios do painel. Cada partida concluída ajuda a conter a névoa!",
       duration: 30, goal: 120, kind: "momoka"
     });
-    state.lastAutoAt = Date.now();
-    await writeState(repository, guildId, state);
+    const refreshed = await readState(repository, guildId);
+    refreshed.lastAutoAt = Date.now();
+    await writeState(repository, guildId, refreshed);
     await interaction.reply({ content: "Missão surpresa publicada em " + channel + "! 🌸", ephemeral: true });
     return true;
   }
   if ((interaction.commandName === "missao" && action === "criar") || (interaction.commandName === "evento" && action === "criar")) {
-    if (state.active?.status === "active") {
+    if (state.active?.status === "active" && Date.now() <= state.active.endsAt) {
       await interaction.reply({ content: "Já existe uma missão/evento ativo. Encerre-o antes de criar outro.", ephemeral: true });
       return true;
     }
@@ -164,7 +166,8 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
   if (!guildId) return;
   const state = await readState(repository, guildId);
   const event = state.active;
-  if (!event || event.status !== "active" || Date.now() > event.endsAt) return;
+  if (!event || event.status !== "active") return;
+  if (Date.now() > event.endsAt) { event.status = "expired"; await writeState(repository, guildId, state); return; }
   event.progress += Math.max(0, Number(points) || 0);
   if (!event.participants.includes(playerId)) event.participants.push(playerId);
   if (event.progress >= event.goal) {
@@ -191,6 +194,10 @@ export function startCommunityAutomation(client, repository) {
     try {
       for (const [guildId, lastAt] of lastActivity.entries()) {
         const state = await readState(repository, guildId);
+        if (state.active?.status === "active" && Date.now() > state.active.endsAt) {
+          state.active.status = "expired";
+          await writeState(repository, guildId, state);
+        }
         if (!state.autoEnabled || state.active?.status === "active") continue;
         if (Date.now() - lastAt < IDLE_MS) continue;
         if (Date.now() - Number(state.lastAutoAt || 0) < AUTO_COOLDOWN_MS) continue;
@@ -202,8 +209,9 @@ export function startCommunityAutomation(client, repository) {
           description: "A vila ficou tranquila por um bom tempo, mas um selo antigo começou a perder energia na praça! A Momoka convoca os shinobi para uma missão coletiva.\n\nJoguem os desafios do painel em `/jogo` para reunir pontos e restaurar o selo antes do prazo!",
           duration: 30, goal: 120, kind: "automatic"
         });
-        state.lastAutoAt = Date.now();
-        await writeState(repository, guildId, state);
+        const refreshed = await readState(repository, guildId);
+        refreshed.lastAutoAt = Date.now();
+        await writeState(repository, guildId, refreshed);
       }
     } catch (error) {
       console.error("Falha na verificação de missões automáticas:", error.message);
