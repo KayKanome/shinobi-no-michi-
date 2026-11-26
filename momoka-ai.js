@@ -1,5 +1,5 @@
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
-const MOMOKA_CHAT_CHANNEL_ID = process.env.MOMOKA_CHAT_CHANNEL_ID ?? "";
+
 const MOMOKA_MODEL = process.env.MOMOKA_MODEL ?? "gpt-4.1-mini";
 const API_URL = "https://api.openai.com/v1/chat/completions";
 const userCooldowns = new Map();
@@ -21,7 +21,7 @@ Mantenha respostas normalmente curtas (1 a 5 frases), mas aprofunde quando algu�
 
 function cleanDiscordContent(value, botId) {
   return String(value ?? "")
-    .replace(new RegExp(`<@!?\\${botId}>`, "g"), "@Momoka")
+    .replace(new RegExp(`<@!?${botId}>`, "g"), "@Momoka")
     .replace(/<@&!?\\d+>/g, "@cargo")
     .replace(/<#[0-9]+>/g, "#canal")
     .slice(0, 1800);
@@ -30,10 +30,10 @@ function cleanDiscordContent(value, botId) {
 function shouldIgnore(message, client) {
   if (!message.guild || message.author.bot || message.webhookId) return true;
   const content = String(message.content ?? "").trim();
-  if (!content || /^RP\\./i.test(content) || content.startsWith("!")) return true;
+  if (!content || /^RP\./i.test(content) || content.startsWith("!")) return true;
   if (content.startsWith("/") || content.startsWith("!")) return true;
   const mentioned = message.mentions.users.has(client.user.id);
-  return message.channelId !== MOMOKA_CHAT_CHANNEL_ID && !mentioned;
+  return false;
 }
 
 async function getConversationContext(message, repository, client) {
@@ -90,15 +90,15 @@ export function setupMomokaChat(client, repository) {
   if (!OPENAI_API_KEY) {
     console.warn("Momoka IA: configure OPENAI_API_KEY no ambiente do serviço para ativar as conversas.");
   }
-  if (!MOMOKA_CHAT_CHANNEL_ID) {
-    console.warn("Momoka IA: configure MOMOKA_CHAT_CHANNEL_ID para definir o canal de convivência. Menções continuarão sendo reconhecidas após a chave de IA ser configurada.");
-  }
 
   client.on("messageCreate", async message => {
     if (shouldIgnore(message, client)) return;
     if (!OPENAI_API_KEY) return;
 
     const mentioned = message.mentions.users.has(client.user.id);
+    const configuredChannelId = await repository.getMomokaChatChannel(message.guild.id).catch(() => null);
+    const isHomeChannel = Boolean(configuredChannelId && message.channelId === configuredChannelId);
+    if (!isHomeChannel && !mentioned) return;
     const now = Date.now();
     const lastUserMessage = userCooldowns.get(message.author.id) ?? 0;
     if (now - lastUserMessage < 4500) return;
@@ -109,7 +109,7 @@ export function setupMomokaChat(client, repository) {
     try {
       const { transcript, facts } = await getConversationContext(message, repository, client);
       const currentText = cleanDiscordContent(message.content, client.user.id).trim();
-      const channelMode = message.channelId === MOMOKA_CHAT_CHANNEL_ID ? "canal principal de convivência" : "menção direta fora do canal principal";
+      const channelMode = isHomeChannel ? "canal principal de convivência" : "menção direta fora do canal principal";
       const messages = [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "system", content: `Contexto: ${channelMode}. Servidor: ${message.guild.name}. ${facts.join(" ")}. Use o histórico apenas para manter continuidade, sem presumir que tudo seja verdade.` },
