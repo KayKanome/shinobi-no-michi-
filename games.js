@@ -105,7 +105,8 @@ export const gameSlashCommands = [
 function lobby(room) {
   const names = [...room.players.values()].map(p => "• <@" + p.id + ">").join("\n");
   const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle("🎮 Sala " + room.code + " — " + GAMES[room.kind].name)
-    .setDescription("Anfitrião: <@" + room.hostId + ">\n\n**Participantes (" + room.players.size + ")**\n" + names + "\n\nMínimo: 2 jogadores. O anfitrião inicia quando todos estiverem prontos.");
+    .setDescription("**Convite de partida multiplayer**\nJogo: " + GAMES[room.kind].name + "\nCódigo: `" + room.code + "`\nAnfitrião: <@" + room.hostId + ">\n\n**Participantes (" + room.players.size + ")**\n" + names + "\n\nMínimo: 2 jogadores. O anfitrião inicia quando todos estiverem prontos.")
+    .setFooter({ text: "Convite de jogo • Shinobi no Michi" });
   return { embeds: [embed], components: [new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("games:join:" + room.code).setLabel("Entrar na sala").setEmoji("🙋").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId("games:start:" + room.code).setLabel("Iniciar partida").setEmoji("🚀").setStyle(ButtonStyle.Primary),
@@ -223,8 +224,10 @@ export async function handleGamesInteraction(interaction, repository) {
     if (!GAMES[kind]) { await interaction.reply({ content: "Jogo não encontrado.", ephemeral: true }); return true; }
     if (action === "multi") {
       const room = { code: code(), kind, hostId: owner, players: new Map([[owner, { id: owner, name: interaction.user.globalName || interaction.user.username }]]), repository };
-      rooms.set(room.code, room); room.message = await interaction.channel.send(lobby(room));
-      await interaction.update({ content: "Sala **" + room.code + "** criada! Compartilhe com os jogadores para entrarem.", embeds: [], components: [] });
+      rooms.set(room.code, room);
+      await interaction.deferUpdate();
+      room.message = await interaction.channel.send(lobby(room));
+      await interaction.followUp({ content: "🌸 Sala **" + room.code + "** criada! Compartilhe o convite de jogo com os participantes.", ephemeral: true });
       return true;
     }
     const player = await repository.getPlayer("discord:" + owner);
