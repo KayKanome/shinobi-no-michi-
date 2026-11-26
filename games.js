@@ -222,18 +222,36 @@ async function saveScore(repository, id, kind, points, correct) {
   s.byGame[kind] = s.byGame[kind] || { points: 0, played: 0, correct: 0 };
   s.byGame[kind].points += points; s.byGame[kind].played += 1; s.byGame[kind].correct += correct;
   s.achievements = s.achievements || [];
+  const previousBest = Number(s.bestGamePoints || 0);
+  const isNewRecord = points > previousBest;
+  if (isNewRecord) s.bestGamePoints = points;
   if (!s.achievements.includes("Primeira Partida")) s.achievements.push("Primeira Partida");
   if (s.totalPoints >= 100 && !s.achievements.includes("Espírito Competitivo")) s.achievements.push("Espírito Competitivo");
   if (s.byGame[kind].correct >= 10 && !s.achievements.includes("Mestre " + GAMES[kind].name)) s.achievements.push("Mestre " + GAMES[kind].name);
   player.gameStats = s;
   await repository.savePlayer(player);
+  return { isNewRecord, previousBest, points, name: player.name || "Shinobi" };
 }
 async function end(session) {
   clearTimeout(session.timer); session.status = "finished";
   const result = [];
   for (const p of session.players.values()) {
     const points = session.score.get(p.id) || 0;
-    await saveScore(session.repository, p.id, session.kind, points, session.correct.get(p.id) || 0);
+    const saved = await saveScore(session.repository, p.id, session.kind, points, session.correct.get(p.id) || 0);
+    if (saved?.isNewRecord && session.guildId && session.client) {
+      try {
+        const muralId = await session.repository.getMuralChannel(session.guildId);
+        const mural = muralId ? await session.client.channels.fetch(muralId).catch(() => null) : null;
+        if (mural?.isTextBased?.()) {
+          await mural.send({
+            content: `🏅 **NOVO RECORDE PESSOAL!**\\nParabéns, <@${p.id}>! Você marcou **${points} pontos** em uma única partida e superou seu recorde anterior de **${saved.previousBest} pontos**! 🌸`,
+            allowedMentions: { users: [p.id] }
+          });
+        }
+      } catch (error) {
+        console.error("Não foi possível publicar o recorde no Mural da Vila:", error.message);
+      }
+    }
     result.push({ name: p.name, points });
   }
   result.sort((a, b) => b.points - a.points);
@@ -309,7 +327,7 @@ export async function handleGamesInteraction(interaction, repository) {
     if (interaction.user.id !== owner) { await interaction.reply({ content: "Este painel pertence a outra pessoa. Use /jogo para abrir o seu.", ephemeral: true }); return true; }
     if (!GAMES[kind]) { await interaction.reply({ content: "Jogo não encontrado.", ephemeral: true }); return true; }
     if (action === "multi") {
-      const room = { code: code(), kind, hostId: owner, players: new Map([[owner, { id: owner, name: interaction.user.globalName || interaction.user.username }]]), repository };
+      const room = { code: code(), kind, hostId: owner, guildId: interaction.guildId, client: interaction.client, players: new Map([[owner, { id: owner, name: interaction.user.globalName || interaction.user.username }]]), repository };
       rooms.set(room.code, room);
       await interaction.deferUpdate();
       room.message = await interaction.channel.send(lobby(room));
@@ -318,7 +336,7 @@ export async function handleGamesInteraction(interaction, repository) {
     }
     await interaction.deferUpdate();
     const player = await repository.getPlayer("discord:" + owner);
-    const session = { id: code(), kind, mode: "solo", hostId: owner, players: new Map([[owner, { id: owner, name: player?.name || interaction.user.globalName || interaction.user.username }]]), score: new Map([[owner, 0]]), correct: new Map([[owner, 0]]), answers: new Map(), repository, round: 1, status: "playing" };
+    const session = { id: code(), kind, mode: "solo", guildId: interaction.guildId, client: interaction.client, players: new Map([[owner, { id: owner, name: player?.name || interaction.user.globalName || interaction.user.username }]]), score: new Map([[owner, 0]]), correct: new Map([[owner, 0]]), answers: new Map(), repository, round: 1, status: "playing" };
     session.questionUsed = new Set(); sessions.set(session.id, session); session.question = question(kind, 1, Date.now() % 100000, session.questionUsed);
     await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("Preparando seu desafio...")], components: [] });
     session.edit = payload => interaction.editReply(payload); await render(session); return true;
@@ -334,7 +352,7 @@ export async function handleGamesInteraction(interaction, repository) {
     if (interaction.user.id !== room.hostId) { await interaction.reply({ content: "Somente o anfitrião pode iniciar ou cancelar.", ephemeral: true }); return true; }
     if (action === "cancel") { rooms.delete(room.code); await interaction.update({ content: "Sala cancelada.", embeds: [], components: [] }); return true; }
     if (room.players.size < 2) { await interaction.reply({ content: "São necessários pelo menos 2 participantes.", ephemeral: true }); return true; }
-    const session = { id: room.code, roomCode: room.code, kind: room.kind, mode: "multi", hostId: room.hostId, players: room.players, score: new Map([...room.players.keys()].map(x => [x, 0])), correct: new Map([...room.players.keys()].map(x => [x, 0])), answers: new Map(), repository: room.repository, message: room.message, round: 1, status: "playing" };
+    const session = { id: room.code, roomCode: room.code, kind: room.kind, mode: "multi", guildId: room.guildId, client: room.client, players: room.players, score: new Map([...room.players.keys()].map(x => [x, 0])), correct: new Map([...room.players.keys()].map(x => [x, 0])), answers: new Map(), repository: room.repository, message: room.message, round: 1, status: "playing" };
     session.questionUsed = new Set(); sessions.set(session.id, session); session.question = question(session.kind, 1, Date.now() % 100000, session.questionUsed);
     await interaction.deferUpdate(); await render(session); return true;
   }
