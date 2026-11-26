@@ -45,6 +45,9 @@ A resposta funciona porque brinca com o que a pessoa realmente disse. Não inven
 IDENTIDADE DE IA
 MEMÓRIA SOCIAL POR JOGADOR
 - O contexto pode incluir um estado de relacionamento salvo para a pessoa que está falando. Use isso com discrição e consistência.
+- A memória social pode conter lembranças compartilhadas do servidor e preferências leves que a própria pessoa declarou. Use-as apenas quando forem pertinentes; não finja lembrar de algo que não esteja no contexto.
+- Nunca registre nem use como memória senhas, segredos, dados de contato, localização precisa, informações financeiras, saúde, vida íntima, conflitos privados ou qualquer dado sensível. Não deduza características pessoais. Guarde apenas preferências não sensíveis, fatos públicos do RPG/servidor, projetos em andamento e brincadeiras internas claramente compartilhadas.
+- Uma memória deve ser curta, factual, útil em conversas futuras e sustentada explicitamente pelas mensagens. Se houver dúvida, não memorize.
 - Só marque como ofensa quando houver insulto claro e diretamente dirigido a você. Não classifique como ofensa brincadeiras amistosas, provocações claramente recíprocas, críticas ao bot, reclamações técnicas, palavrões genéricos ou mensagens dirigidas a outra pessoa.
 - Só considere pedido de desculpas quando for claramente dirigido a você e parecer sincero. Um "foi mal" claramente relacionado ao ocorrido pode bastar; não exija palavras específicas.
 - Se a pessoa estiver marcada como magoou a Momoka, fique mais reservada e firme, com respostas um pouco mais secas. Não seja cruel, ameaçadora, vingativa, não humilhe, não persiga e não prolongue conflito.
@@ -121,10 +124,11 @@ function parseMomokaResponse(raw) {
     return {
       reply: String(parsed.reply ?? "").trim(),
       relationshipAction: ["none", "hurt", "apology"].includes(parsed.relationshipAction) ? parsed.relationshipAction : "none",
-      reason: String(parsed.reason ?? "").trim().slice(0, 240)
+      reason: String(parsed.reason ?? "").trim().slice(0, 240),
+      memories: Array.isArray(parsed.memories) ? parsed.memories.slice(0, 3) : []
     };
   } catch {
-    return { reply: text, relationshipAction: "none", reason: "" };
+    return { reply: text, relationshipAction: "none", reason: "", memories: [] };
   }
 }
 
@@ -179,11 +183,13 @@ export function setupMomokaChat(client, repository) {
     userCooldowns.set(message.author.id, now);
     activeChannels.add(message.channelId);
     try {
-      const [context, relationship] = await Promise.all([
+      const [context, relationship, memories] = await Promise.all([
         getConversationContext(message, repository, client),
-        repository.getMomokaRelationship(message.guild.id, message.author.id).catch(() => null)
+        repository.getMomokaRelationship(message.guild.id, message.author.id).catch(() => null),
+        repository.getMomokaMemories(message.guild.id, message.author.id).catch(() => [])
       ]);
       const { transcript, facts } = context;
+      const memoryContext = memories.map(item => `[${item.scope === "shared" ? "Servidor" : "Pessoa"}] ${item.text}`).join("\\n");
       const currentText = cleanDiscordContent(message.content, client.user.id).trim();
       const channelMode = isHomeChannel ? "canal principal de convivência" : "menção direta fora do canal principal";
       const relationshipContext = relationship?.status === "hurt"
@@ -196,6 +202,17 @@ export function setupMomokaChat(client, repository) {
         { role: "user", content: `[${message.member?.displayName || message.author.globalName || message.author.username}]: ${currentText}` }
       ];
       const result = parseMomokaResponse(await requestReply(messages));
+      for (const candidate of result.memories) {
+        const scope = candidate?.scope === "shared" ? "shared" : candidate?.scope === "user" ? "user" : null;
+        const text = String(candidate?.text ?? "").replace(/\\s+/g, " ").trim().slice(0, 180);
+        if (!scope || text.length < 8 || /senha|password|token|telefone|endereço|cpf|cartão|diagnóstico|remédio|doença|localização|segredo/i.test(text)) continue;
+        await repository.addMomokaMemory(message.guild.id, {
+          scope,
+          userId: scope === "user" ? message.author.id : null,
+          text,
+          createdAt: new Date().toISOString()
+        }).catch(error => console.warn("Momoka: não foi possível salvar memória social:", error.message));
+      }
       if (result.relationshipAction === "hurt") {
         const nextCount = relationship?.status === "hurt" ? (relationship.offenseCount ?? 1) + 1 : 1;
         await repository.setMomokaRelationship(message.guild.id, message.author.id, {
