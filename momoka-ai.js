@@ -189,7 +189,7 @@ export function setupMomokaChat(client, repository) {
         repository.getMomokaMemories(message.guild.id, message.author.id).catch(() => [])
       ]);
       const { transcript, facts } = context;
-      const memoryContext = memories.map(item => `[${item.scope === "shared" ? "Servidor" : "Pessoa"}] ${item.text}`).join("\\n");
+      const memoryContext = memories.map(item => `[${item.scope === "shared" ? "Servidor" : "Pessoa"}] ${item.text}`).join("\n");
       const currentText = cleanDiscordContent(message.content, client.user.id).trim();
       const channelMode = isHomeChannel ? "canal principal de convivência" : "menção direta fora do canal principal";
       const relationshipContext = relationship?.status === "hurt"
@@ -197,7 +197,7 @@ export function setupMomokaChat(client, repository) {
         : "Memória social: não há conflito pendente com esta pessoa.";
       const messages = [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "system", content: `Contexto: ${channelMode}. Servidor: ${message.guild.name}. ${facts.join(" ")}. ${relationshipContext} Use o histórico apenas para manter continuidade, sem presumir que tudo seja verdade.\n\nResponda SEMPRE com um único objeto JSON válido, sem markdown, neste formato: {"reply":"sua resposta ou [[SILENT]]","relationshipAction":"none|hurt|apology","reason":"motivo curto ou vazio"}. relationshipAction=hurt somente para ofensa clara e diretamente dirigida à Momoka nesta mensagem; apology somente para pedido sincero dirigido à Momoka que reconheça ou repare a ofensa; em todos os outros casos none. Nunca use hurt para brincadeira, crítica, discordância ou palavrão sem alvo claro.` },
+        { role: "system", content: `Contexto: ${channelMode}. Servidor: ${message.guild.name}. ${facts.join(" ")}. ${relationshipContext}\nMemórias sociais confirmadas:\n${memoryContext || "Nenhuma memória salva ainda."}\nUse o histórico e as memórias apenas para manter continuidade, sem presumir que tudo seja verdade.\n\nResponda SEMPRE com um único objeto JSON válido, sem markdown, neste formato: {"reply":"sua resposta ou [[SILENT]]","relationshipAction":"none|hurt|apology","reason":"motivo curto ou vazio","memories":[{"scope":"user|shared","text":"lembrança curta e factual"}]}. Memorize no máximo 1 a 3 fatos não sensíveis, explicitamente declarados e úteis no futuro. scope=user para preferência/objetivo não sensível da pessoa atual; scope=shared para fatos públicos do servidor, do RPG ou brincadeiras compartilhadas. Não memorize fatos passageiros, suposições, dados sensíveis, segredos, insultos ou informações de terceiros. Se nada for adequado, use memories:[]. relationshipAction=hurt somente para ofensa clara e diretamente dirigida à Momoka nesta mensagem; apology somente para pedido sincero dirigido à Momoka que reconheça ou repare a ofensa; em todos os outros casos none. Nunca use hurt para brincadeira, crítica, discordância ou palavrão sem alvo claro.` },
         ...transcript,
         { role: "user", content: `[${message.member?.displayName || message.author.globalName || message.author.username}]: ${currentText}` }
       ];
