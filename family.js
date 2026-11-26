@@ -50,10 +50,10 @@ export async function handleFamilyCommand(interaction, repository) {
     if (!validOther(other, interaction)) return interaction.reply({ content: "Selecione a outra pessoa envolvida na adoção.", ephemeral: true });
     const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = await import("discord.js");
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`family:desertar:confirm:${interaction.user.id}:${other.id}`).setLabel("Sim, desvincular").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`family:desertar:confirm:${interaction.user.id}:${other.id}`).setLabel("Sim, deserdar").setStyle(ButtonStyle.Danger),
       new ButtonBuilder().setCustomId(`family:desertar:cancel:${interaction.user.id}:${other.id}`).setLabel("Não, voltar").setStyle(ButtonStyle.Secondary)
     );
-    return interaction.reply({ content: `🌿 Você confirma que deseja encerrar o vínculo de adoção com ${other}? A árvore familiar será atualizada e o histórico será preservado.`, components: [row], ephemeral: true });
+    return interaction.reply({ content: `🌿 Você confirma que deseja deserdar ${other}? A árvore familiar será atualizada e o histórico será preservado.`, components: [row], ephemeral: true });
   }
   if (command === "cancelar_adocao") {
     const other = interaction.options.getUser("jogador");
