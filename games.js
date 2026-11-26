@@ -112,7 +112,7 @@ const WHO = [
   ["Sou o Quarto Mizukage e jinchūriki de Isobu.",["Yagura","Mei","Ao","Chojuro"],0],
   ["Sou o Segundo Tsuchikage e mestre da desintegração.",["Mu","Onoki","Kitsuchi","Deidara"],0],
   ["Sou o Terceiro Raikage e pai de A.",["A","Darui","Killer B","C"],0],
-  ["Sou o braço direito de Danzo e uso técnicas de madeira.",["Yamato","Sai","Fū","Torune"],2],
+  ["Sou um ninja da Raiz de Danzo e uso insetos venenosos.",["Yamato","Sai","Fū","Torune"],3],
   ["Sou o artista da tinta que entrou no Time 7.",["Sai","Yamato","Shino","Kiba"],0],
   ["Sou o irmão de Sai, lembrado em sua infância.",["Shin","Dan","Shisui","Sasuke"],0],
   ["Sou o Uchiha que deu seu Sharingan a Kakashi.",["Obito","Shisui","Itachi","Madara"],0],
@@ -292,14 +292,15 @@ async function ranking(interaction, repository, kind) {
     .sort((a, b) => kind === "all" ? b.stats.totalPoints - a.stats.totalPoints : b.stats.byGame[kind].points - a.stats.byGame[kind].points).slice(0, 10);
   const desc = rows.length ? rows.map((p, i) => (i + 1) + ". **" + p.name + "** — " + (kind === "all" ? p.stats.totalPoints : p.stats.byGame[kind].points) + " pts").join("\n") : "Ainda não há pontuações. Seja o primeiro a jogar!";
   const title = kind === "all" ? "🏆 Ranking geral dos jogos" : GAMES[kind].emoji + " Ranking — " + GAMES[kind].name;
-  return interaction.update({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle(title).setDescription(desc)], components: [] });
+  return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle(title).setDescription(desc)], components: [] });
 }
 export async function handleGamesCommand(interaction, repository) {
   if (interaction.commandName === "jogo") return interaction.reply({ ...modePanel(interaction.user.id), ephemeral: true });
+  await interaction.deferReply({ ephemeral: true });
   const players = await repository.getAllPlayers();
   const rows = players.map(p => ({ name: p.name, stats: p.gameStats || {} })).filter(p => (p.stats.totalPoints || 0) > 0).sort((a, b) => b.stats.totalPoints - a.stats.totalPoints).slice(0, 10);
   const desc = rows.length ? rows.map((p, i) => (i + 1) + ". **" + p.name + "** — " + p.stats.totalPoints + " pts").join("\n") : "Ainda não há pontuações. Seja o primeiro a jogar!";
-  return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("🏆 Ranking geral dos jogos").setDescription(desc)], ephemeral: true });
+  return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("🏆 Ranking geral dos jogos").setDescription(desc)] });
 }
 export async function handleGamesInteraction(interaction, repository) {
   if (!interaction.customId?.startsWith("games:")) return false;
@@ -313,13 +314,14 @@ export async function handleGamesInteraction(interaction, repository) {
       rooms.set(room.code, room);
       await interaction.deferUpdate();
       room.message = await interaction.channel.send(lobby(room));
-      await interaction.followUp({ content: "🌸 Sala **" + room.code + "** criada! Compartilhe o convite de jogo com os participantes.", ephemeral: true });
+      await interaction.editReply({ content: "🌸 Sala **" + room.code + "** criada! O convite separado foi enviado no canal.", embeds: [], components: [] });
       return true;
     }
+    await interaction.deferUpdate();
     const player = await repository.getPlayer("discord:" + owner);
     const session = { id: code(), kind, mode: "solo", hostId: owner, players: new Map([[owner, { id: owner, name: player?.name || interaction.user.globalName || interaction.user.username }]]), score: new Map([[owner, 0]]), correct: new Map([[owner, 0]]), answers: new Map(), repository, round: 1, status: "playing" };
     session.questionUsed = new Set(); sessions.set(session.id, session); session.question = question(kind, 1, Date.now() % 100000, session.questionUsed);
-    await interaction.update({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("Preparando seu desafio...")], components: [] });
+    await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("Preparando seu desafio...")], components: [] });
     session.edit = payload => interaction.editReply(payload); await render(session); return true;
   }
   if (["join", "start", "cancel"].includes(action)) {
@@ -364,7 +366,7 @@ export async function handleGamesInteraction(interaction, repository) {
       rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("games:rank:all:" + owner).setLabel("🏆 Ranking geral").setStyle(ButtonStyle.Secondary)));
       await interaction.update({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("Rankings por jogo").setDescription("Escolha uma classificação.")], components: rows }); return true;
     }
-    await ranking(interaction, repository, p[2]); return true;
+    await interaction.deferUpdate(); await ranking(interaction, repository, p[2]); return true;
   }
   return false;
 }
