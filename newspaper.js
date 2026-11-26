@@ -85,6 +85,11 @@ export function startNewspaperWeekly(client, repository) {
       try {
         const state = await getState(repository, guild.id);
         if (!state.newspaperChannelId) continue;
+        if (!state.lastWeeklyNewspaperAt) {
+          state.lastWeeklyNewspaperAt = Date.now();
+          await saveState(repository, guild.id, state);
+          continue;
+        }
         const last = Number(state.lastWeeklyNewspaperAt || 0);
         if (Date.now() - last < WEEK_MS) continue;
         const entries = (state.newspaperEntries || []).filter(item => Date.now() - item.at <= WEEK_MS).slice(-20);
