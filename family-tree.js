@@ -15,7 +15,7 @@ async function avatarData(client, id) {
   } catch { return null; }
 }
 
-export async function renderFamilyTree({player,family,ownerId,client}) {
+export async function renderFamilyTree({player,family,ownerId,client,repository}) {
   const groups=[
     {label:"ANCESTRAIS",subtitle:"Avós",items:family.grandparents||[],color:"#A67C43"},
     {label:"GERAÇÃO ANTERIOR",subtitle:"Responsáveis",items:(family.parents||[]).map(x=>({...x,tag:x.tag||"Responsável"})),color:"#78956A"},
@@ -30,7 +30,13 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   const root={id:"discord:"+ownerId,name:player.name,tag:rootTag,avatar:rootUser?await avatarData(client,ownerId):null,root:true};
   for(const group of groups) {
     group.items=group.items.filter(x=>x.id && x.id!=="discord:"+ownerId);
-    await Promise.all(group.items.map(async item=>{item.avatar=await avatarData(client,item.id);}));
+    await Promise.all(group.items.map(async item=>{
+      item.avatar=await avatarData(client,item.id);
+      if(group.label==="PRÓXIMA GERAÇÃO" && repository){
+        const child=await repository.getPlayer(item.id).catch(()=>null);
+        item.tag=child?.familyGender==="feminino"?"Filha":child?.familyGender==="masculino"?"Filho":"Filho(a)";
+      }
+    }));
   }
   const W=1600, cardW=240, cardH=214, gap=34;
   let nextY=320;
