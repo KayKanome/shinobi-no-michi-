@@ -9,6 +9,11 @@ export const newspaperSlashCommands = [
     .addSubcommand(s => s.setName("configurar").setDescription("Escolhe o canal do jornal.")
       .addChannelOption(o => o.setName("canal").setDescription("Canal onde o jornal será publicado.").addChannelTypes(ChannelType.GuildText).setRequired(true)))
     .addSubcommand(s => s.setName("publicar").setDescription("Publica uma edição com os acontecimentos recentes."))
+    .addSubcommand(s => s.setName("ignorar-adicionar").setDescription("Impede o jornal de registrar acontecimentos deste canal.")
+      .addChannelOption(o => o.setName("canal").setDescription("Canal que o jornal deve ignorar.").addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand(s => s.setName("ignorar-remover").setDescription("Permite que o jornal volte a registrar este canal.")
+      .addChannelOption(o => o.setName("canal").setDescription("Canal que deixará de ser ignorado.").addChannelTypes(ChannelType.GuildText).setRequired(true)))
+    .addSubcommand(s => s.setName("ignorar-listar").setDescription("Mostra os canais ignorados pelo jornal."))
 ];
 
 async function getState(repository, guildId) {
@@ -88,8 +93,10 @@ async function publishEdition(client, repository, guildId, label, entries, weekl
 export async function recordNewspaperMoment(repository, guildId, moment) {
   if (!guildId || !moment?.text) return;
   const state = await getState(repository, guildId);
+  const ignoredChannels = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
+  if (moment.channelId && ignoredChannels.includes(moment.channelId)) return;
   const entries = Array.isArray(state.newspaperEntries) ? state.newspaperEntries : [];
-  const entry = { at: Date.now(), category: moment.category || "Momento da vila", text: String(moment.text).slice(0, 450) };
+  const entry = { at: Date.now(), channelId: moment.channelId || null, category: moment.category || "Momento da vila", text: String(moment.text).slice(0, 450) };
   entries.push(entry);
   state.newspaperEntries = entries.slice(-150);
   await saveState(repository, guildId, state);
@@ -132,6 +139,47 @@ export async function handleNewspaperCommand(interaction, client, repository) {
     state.newspaperChannelId = channel.id;
     await saveState(repository, interaction.guildId, state);
     await interaction.reply({ content: "📰 O Jornal de Konohagakure será publicado em " + channel + ". As edições e notícias importantes marcarão @everyone.", ephemeral: true });
+    return true;
+  }
+  if (action === "ignorar-adicionar") {
+    const channel = interaction.options.getChannel("canal");
+    const ignored = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
+    if (ignored.includes(channel.id)) {
+      await interaction.reply({ content: channel + " já está na lista de canais ignorados pelo jornal. 🌸", ephemeral: true });
+      return true;
+    }
+    state.newspaperIgnoredChannelIds = [...ignored, channel.id];
+    state.newspaperEntries = (state.newspaperEntries || []).filter(item => item.channelId !== channel.id);
+    const pending = pendingEditions.get(interaction.guildId);
+    if (pending) {
+      pending.entries = pending.entries.filter(item => item.channelId !== channel.id);
+      if (!pending.entries.length) {
+        if (pending.timer) clearTimeout(pending.timer);
+        pendingEditions.delete(interaction.guildId);
+      }
+    }
+    await saveState(repository, interaction.guildId, state);
+    await interaction.reply({ content: "🔒 " + channel + " agora está ignorado pelo Jornal. A Momoka não registrará acontecimentos desse canal nas próximas edições.", ephemeral: true });
+    return true;
+  }
+  if (action === "ignorar-remover") {
+    const channel = interaction.options.getChannel("canal");
+    const ignored = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
+    if (!ignored.includes(channel.id)) {
+      await interaction.reply({ content: channel + " não está na lista de canais ignorados. 🌸", ephemeral: true });
+      return true;
+    }
+    state.newspaperIgnoredChannelIds = ignored.filter(id => id !== channel.id);
+    await saveState(repository, interaction.guildId, state);
+    await interaction.reply({ content: "🌸 " + channel + " deixou de ser ignorado. O jornal poderá registrar acontecimentos futuros desse canal.", ephemeral: true });
+    return true;
+  }
+  if (action === "ignorar-listar") {
+    const ignored = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
+    await interaction.reply({
+      content: ignored.length ? "🔒 **Canais ignorados pelo Jornal:**\\n" + ignored.map(id => "<#" + id + ">").join("\\n") : "A lista de canais ignorados está vazia. 🌸",
+      ephemeral: true
+    });
     return true;
   }
   await interaction.deferReply({ ephemeral: true });
