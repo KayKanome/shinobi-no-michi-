@@ -501,7 +501,9 @@ export function startCommunityAutomation(client, repository) {
           state.active.status = "expired";
           await writeState(repository, guildId, state);
         }
-        if (!state.autoEnabled || state.active?.status === "active") continue;
+        const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+        if (state.activityDay !== today) { state.activityDay = today; state.activitiesToday = 0; await writeState(repository, guildId, state); }
+        if (!state.autoEnabled || state.active?.status === "active" || Number(state.activitiesToday || 0) >= 3) continue;
         const offlineAt = offlineSince.get(guildId);
         if (!offlineAt || Date.now() - offlineAt < OFFLINE_GRACE_MS) continue;
         const idleAt = lastActivity.get(guildId) || offlineAt;
@@ -519,6 +521,8 @@ export function startCommunityAutomation(client, repository) {
           });
           const refreshed = await readState(repository, guildId);
           refreshed.lastAutoAt = Date.now();
+          refreshed.activitiesToday = Number(refreshed.activitiesToday || 0) + 1;
+          refreshed.activityDay = today;
           refreshed.recentScenarioIds = state.recentScenarioIds;
           await writeState(repository, guildId, refreshed);
         }
