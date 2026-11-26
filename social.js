@@ -307,7 +307,7 @@ function rpCharacterPanel(ownerId, character) {
 
 function rpCharacterModal(ownerId, character = null) {
   const modal = new ModalBuilder().setCustomId(character ? `rp:saveedit:${character.id}:${ownerId}` : `rp:savecreate:${ownerId}`).setTitle(character ? "Editar personagem" : "Criar personagem");
-  const field = (id, label, style, required, value, placeholder, maxLength) => new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(required).setMaxLength(maxLength).setValue(value || "").setPlaceholder(placeholder);
+  const field = (id, label, style, required, value, placeholder, maxLength) => { const input = new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(required).setMaxLength(maxLength).setPlaceholder(placeholder); if (value) input.setValue(value); return input; };
   modal.addComponents(
     new ActionRowBuilder().addComponents(field("name", "Nome do personagem", TextInputStyle.Short, true, character?.name, "Ex.: Kanome", 32)),
     new ActionRowBuilder().addComponents(field("image", "URL da imagem (opcional)", TextInputStyle.Short, false, character?.imageUrl, "https://...", 500)),
