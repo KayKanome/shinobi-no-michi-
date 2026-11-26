@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { familyCommands, handleFamilyCommand } from "./family.js";
 import { renderFamilyTree } from "./family-tree.js";
 import { buildGamesPanel, gameSlashCommands, handleGamesCommand, handleGamesInteraction } from "./games.js";
@@ -9,7 +10,12 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
   UserSelectMenuBuilder,
-  AttachmentBuilder
+  AttachmentBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  StringSelectMenuBuilder,
+  PermissionFlagsBits
 } from "discord.js";
 
 export const SOCIAL_ACTIONS = {
@@ -276,9 +282,62 @@ async function publishAction(channel, actor, target, action) {
   });
 }
 
+function rpHomePanel(ownerId, characters) {
+  const embed = new EmbedBuilder().setColor(0xD98BB8).setTitle("🎭 Central de Personagens").setDescription(characters.length ? "Escolha um personagem para interpretar ou cadastre um novo. Este painel é privado." : "Você ainda não cadastrou personagens. Crie o primeiro para começar a interpretar!");
+  if (characters.length) embed.addFields({ name: "Seus personagens", value: characters.map((item, i) => `${i + 1}. **${item.name}**`).join("\n").slice(0, 1000) });
+  const rows = [];
+  if (characters.length) rows.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`rp:choose:${ownerId}`).setPlaceholder("Selecione seu personagem").setMinValues(1).setMaxValues(1).addOptions(characters.slice(0, 25).map(item => ({ label: item.name.slice(0, 100), value: item.id, description: (item.description || "Personagem de RP").slice(0, 100) })))));
+  rows.push(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`rp:create:${ownerId}`).setLabel("Criar personagem").setEmoji("✨").setStyle(ButtonStyle.Success)));
+  return { embeds: [embed], components: rows };
+}
+
+function rpCharacterPanel(ownerId, character) {
+  const embed = new EmbedBuilder().setColor(0xD98BB8).setTitle(`🎭 ${character.name}`).setDescription(character.description || "Sem descrição cadastrada.").addFields({ name: "Apresentação", value: character.introduction || "Nenhuma apresentação cadastrada." }).setFooter({ text: "Personagem selecionado • Painel privado" });
+  if (character.imageUrl) embed.setThumbnail(character.imageUrl);
+  const compose = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`rp:compose:fala:${character.id}:${ownerId}`).setLabel("Falar").setEmoji("💬").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`rp:compose:acao:${character.id}:${ownerId}`).setLabel("Ação").setEmoji("🎬").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`rp:compose:pensamento:${character.id}:${ownerId}`).setLabel("Pensamento").setEmoji("💭").setStyle(ButtonStyle.Secondary));
+  const manage = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`rp:edit:${character.id}:${ownerId}`).setLabel("Editar").setEmoji("✏️").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`rp:delete:${character.id}:${ownerId}`).setLabel("Excluir").setEmoji("🗑️").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`rp:home:${ownerId}`).setLabel("Trocar personagem").setEmoji("🔄").setStyle(ButtonStyle.Secondary));
+  return { embeds: [embed], components: [compose, manage] };
+}
+
+function rpCharacterModal(ownerId, character = null) {
+  const modal = new ModalBuilder().setCustomId(character ? `rp:saveedit:${character.id}:${ownerId}` : `rp:savecreate:${ownerId}`).setTitle(character ? "Editar personagem" : "Criar personagem");
+  const field = (id, label, style, required, value, placeholder, maxLength) => new TextInputBuilder().setCustomId(id).setLabel(label).setStyle(style).setRequired(required).setMaxLength(maxLength).setValue(value || "").setPlaceholder(placeholder);
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(field("name", "Nome do personagem", TextInputStyle.Short, true, character?.name, "Ex.: Kanome", 32)),
+    new ActionRowBuilder().addComponents(field("image", "URL da imagem (opcional)", TextInputStyle.Short, false, character?.imageUrl, "https://...", 500)),
+    new ActionRowBuilder().addComponents(field("description", "Descrição", TextInputStyle.Paragraph, false, character?.description, "Aparência, personalidade e características", 1000)),
+    new ActionRowBuilder().addComponents(field("intro", "Pequena apresentação", TextInputStyle.Paragraph, false, character?.introduction, "Como o personagem se apresenta", 700)));
+  return modal;
+}
+
+function rpComposeModal(ownerId, character, kind) {
+  const labels = { fala: "Escreva a fala", acao: "Descreva a ação", pensamento: "Escreva o pensamento" };
+  const modal = new ModalBuilder().setCustomId(`rp:publish:${kind}:${character.id}:${ownerId}`).setTitle(`${labels[kind]} • ${character.name}`);
+  const input = new TextInputBuilder().setCustomId("text").setLabel(labels[kind]).setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1900).setPlaceholder("Digite sua interpretação...");
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+  return modal;
+}
+
+async function publishAsRpCharacter(channel, client, character, kind, text) {
+  if (!channel?.isTextBased?.() || !channel.guild) throw new Error("Este canal não permite publicação de RP.");
+  if (!channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ManageWebhooks)) throw new Error("A Momoka precisa da permissão Gerenciar Webhooks neste canal para publicar com o nome e avatar do personagem.");
+  const hooks = await channel.fetchWebhooks();
+  let webhook = hooks.find(item => item.owner?.id === client.user.id && item.name === "Momoka RP");
+  if (!webhook) webhook = await channel.createWebhook({ name: "Momoka RP", reason: "Publicação de personagens do sistema de RP" });
+  const formatted = kind === "acao" ? `*${text}*` : kind === "pensamento" ? `> *💭 ${text}*` : text;
+  await webhook.send({ username: character.name, avatarURL: character.imageUrl || client.user.displayAvatarURL({ extension: "png", size: 256 }), content: formatted, allowedMentions: { parse: [] } });
+}
+
 export async function setupSocialInteractions(client, repository) {
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
+    new SlashCommandBuilder().setName("personagem").setDescription("Abre sua central privada de personagens e interpretação."),
     ...familyCommands(),
     ...gameSlashCommands,
     new SlashCommandBuilder().setName("ship").setDescription("Descubra a combinação fictícia entre dois personagens.")
@@ -325,6 +384,11 @@ export async function setupSocialInteractions(client, repository) {
           const avatar = client.user.displayAvatarURL({ extension: "png", size: 256 });
           return interaction.editReply(mainPanel(interaction.user.id, avatar));
         }
+        if (interaction.commandName === "personagem") {
+          await interaction.deferReply({ ephemeral: true });
+          const characters = await repository.getRpCharacters(interaction.user.id);
+          return interaction.editReply(rpHomePanel(interaction.user.id, characters));
+        }
 
         if (Object.hasOwn(SOCIAL_COMMANDS, interaction.commandName)) {
           const action = SOCIAL_COMMANDS[interaction.commandName];
@@ -341,6 +405,54 @@ export async function setupSocialInteractions(client, repository) {
         }
       }
 
+      if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && interaction.customId.startsWith("rp:")) {
+        const parts = interaction.customId.split(":");
+        const ownerId = parts.at(-1);
+        if (interaction.user.id !== ownerId) return interaction.reply({ content: "Este painel pertence a outra pessoa. Use /personagem para abrir o seu. 🌸", ephemeral: true });
+        if (interaction.isButton() && parts[1] === "create") return interaction.showModal(rpCharacterModal(ownerId));
+        if (interaction.isButton() && parts[1] === "home") return interaction.update(rpHomePanel(ownerId, await repository.getRpCharacters(ownerId)));
+        if (interaction.isStringSelectMenu() && parts[1] === "choose") {
+          const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === interaction.values[0]);
+          if (!character) return interaction.reply({ content: "Não encontrei esse personagem. Abra /personagem novamente.", ephemeral: true });
+          return interaction.update(rpCharacterPanel(ownerId, character));
+        }
+        if (interaction.isButton() && parts[1] === "edit") {
+          const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === parts[2]);
+          if (!character) return interaction.reply({ content: "Esse personagem não foi encontrado.", ephemeral: true });
+          return interaction.showModal(rpCharacterModal(ownerId, character));
+        }
+        if (interaction.isButton() && parts[1] === "delete") {
+          const deleted = await repository.deleteRpCharacter(ownerId, parts[2]);
+          return interaction.update({ content: deleted ? "Personagem excluído. 🌸" : "Não encontrei esse personagem.", ...rpHomePanel(ownerId, await repository.getRpCharacters(ownerId)) });
+        }
+        if (interaction.isButton() && parts[1] === "compose") {
+          const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === parts[3]);
+          if (!character) return interaction.reply({ content: "Esse personagem não foi encontrado.", ephemeral: true });
+          return interaction.showModal(rpComposeModal(ownerId, character, parts[2]));
+        }
+        if (interaction.isModalSubmit() && (parts[1] === "savecreate" || parts[1] === "saveedit")) {
+          const editing = parts[1] === "saveedit";
+          const existing = editing ? (await repository.getRpCharacters(ownerId)).find(item => item.id === parts[2]) : null;
+          if (editing && !existing) return interaction.reply({ content: "Esse personagem não foi encontrado.", ephemeral: true });
+          const name = interaction.fields.getTextInputValue("name").trim();
+          const imageUrl = interaction.fields.getTextInputValue("image").trim();
+          if (imageUrl && !/^https:\/\//i.test(imageUrl)) return interaction.reply({ content: "A imagem precisa ser um link HTTPS válido.", ephemeral: true });
+          if (name.length < 2) return interaction.reply({ content: "O nome precisa ter pelo menos 2 caracteres.", ephemeral: true });
+          const character = { id: existing?.id || randomUUID(), name, imageUrl, description: interaction.fields.getTextInputValue("description").trim(), introduction: interaction.fields.getTextInputValue("intro").trim() };
+          await repository.saveRpCharacter(ownerId, character);
+          return interaction.reply({ ...rpCharacterPanel(ownerId, character), ephemeral: true });
+        }
+        if (interaction.isModalSubmit() && parts[1] === "publish") {
+          const kind = parts[2], characterId = parts[3];
+          const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === characterId);
+          if (!character) return interaction.reply({ content: "Esse personagem não foi encontrado.", ephemeral: true });
+          const message = interaction.fields.getTextInputValue("text").trim();
+          if (!message) return interaction.reply({ content: "Escreva algo antes de publicar.", ephemeral: true });
+          await interaction.deferReply({ ephemeral: true });
+          try { await publishAsRpCharacter(interaction.channel, client, character, kind, message); return interaction.editReply({ content: `Sua ${kind} foi publicada como **${character.name}**! 🌸` }); }
+          catch (error) { return interaction.editReply({ content: error.message || "Não consegui publicar a interpretação. Verifique as permissões do canal." }); }
+        }
+      }
       if (interaction.isButton() && interaction.customId.startsWith("family:desertar:")) {
         const [, , action, ownerId, otherId] = interaction.customId.split(":");
         if (interaction.user.id !== ownerId) return interaction.reply({ content: "Somente quem iniciou esta confirmação pode usá-la.", ephemeral: true });
