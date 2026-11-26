@@ -2,7 +2,7 @@ import http from "node:http";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { setupSocialInteractions } from "./social.js";
+import { setupSocialInteractions, handleRpMessage } from "./social.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -226,9 +226,10 @@ async function readDatabase() {
     }
     if (!Array.isArray(database.processedMessageIds)) database.processedMessageIds = [];
     if (!database.rpCharacters || typeof database.rpCharacters !== "object") database.rpCharacters = {};
+    if (!database.rpActiveCharacters || typeof database.rpActiveCharacters !== "object") database.rpActiveCharacters = {};
     return database;
   } catch (error) {
-    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {} };
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {} };
     throw error;
   }
 }
@@ -287,8 +288,25 @@ const localStore = {
       const characters = database.rpCharacters[ownerId] ?? [];
       const filtered = characters.filter(item => item.id !== characterId);
       database.rpCharacters[ownerId] = filtered;
+      if (database.rpActiveCharacters[ownerId] === characterId) delete database.rpActiveCharacters[ownerId];
       await writeDatabase(database);
       return filtered.length !== characters.length;
+    });
+  },
+  async getActiveRpCharacter(ownerId) {
+    await writeQueue;
+    const database = await readDatabase();
+    const activeId = database.rpActiveCharacters[ownerId];
+    return (database.rpCharacters[ownerId] ?? []).find(item => item.id === activeId) ?? null;
+  },
+  async setActiveRpCharacter(ownerId, characterId) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      const exists = (database.rpCharacters[ownerId] ?? []).some(item => item.id === characterId);
+      if (!exists) return false;
+      database.rpActiveCharacters[ownerId] = characterId;
+      await writeDatabase(database);
+      return true;
     });
   },
   async claimMessage(messageId) {
@@ -339,6 +357,13 @@ function createPostgresStore() {
           )
         `);
         await pool.query(`CREATE INDEX IF NOT EXISTS shinobi_rp_characters_owner_idx ON shinobi_rp_characters(owner_id)`);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_rp_active_characters (
+            owner_id TEXT PRIMARY KEY,
+            character_id TEXT NOT NULL REFERENCES shinobi_rp_characters(id) ON DELETE CASCADE,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
         await pool.query(`
           CREATE TABLE IF NOT EXISTS shinobi_family_adoptions (
             id BIGSERIAL PRIMARY KEY,
@@ -438,6 +463,22 @@ function createPostgresStore() {
     async deleteRpCharacter(ownerId, characterId) {
       await initialize();
       const result = await pool.query("DELETE FROM shinobi_rp_characters WHERE owner_id=$1 AND id=$2", [ownerId, characterId]);
+      return result.rowCount === 1;
+    },
+    async getActiveRpCharacter(ownerId) {
+      await initialize();
+      const result = await pool.query(`SELECT c.id, c.name, c.image_url AS "imageUrl", c.description, c.introduction
+        FROM shinobi_rp_active_characters a
+        JOIN shinobi_rp_characters c ON c.id=a.character_id AND c.owner_id=a.owner_id
+        WHERE a.owner_id=$1`, [ownerId]);
+      return result.rows[0] ?? null;
+    },
+    async setActiveRpCharacter(ownerId, characterId) {
+      await initialize();
+      const result = await pool.query(`INSERT INTO shinobi_rp_active_characters (owner_id, character_id)
+        SELECT $1, id FROM shinobi_rp_characters WHERE owner_id=$1 AND id=$2
+        ON CONFLICT (owner_id) DO UPDATE SET character_id=EXCLUDED.character_id, updated_at=NOW()
+        RETURNING character_id`, [ownerId, characterId]);
       return result.rowCount === 1;
     },
     async claimMessage(messageId) {
@@ -753,6 +794,12 @@ export async function startDiscordBot() {
   client.on("messageCreate", async (message) => {
     try {
       if (!message.guild || message.author.bot || !message.content.trim()) return;
+      if (/^RP\./i.test(message.content.trimStart())) {
+        const firstRpDelivery = await store.claimMessage(`discord:${message.id}`);
+        if (!firstRpDelivery) return;
+        await handleRpMessage(message, client, store);
+        return;
+      }
       if (!message.content.trim().startsWith("!")) return;
 
       const firstDelivery = await store.claimMessage(`discord:${message.id}`);
