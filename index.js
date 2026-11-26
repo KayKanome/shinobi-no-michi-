@@ -106,6 +106,7 @@ function helpMessage() {
     "• !missoes — ver missões disponíveis",
     "• !missao 1 — realizar uma missão",
     "• !ranking — ver os shinobi em destaque",
+    "• !rpg — sistema de estilos, clãs e atributos",
     "• !ajuda — mostrar este menu",
     "",
     "Comece com: !registrar Naruto"
