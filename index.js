@@ -229,9 +229,10 @@ async function readDatabase() {
     if (!database.rpActiveCharacters || typeof database.rpActiveCharacters !== "object") database.rpActiveCharacters = {};
     if (!database.momokaChannels || typeof database.momokaChannels !== "object") database.momokaChannels = {};
     if (!database.muralChannels || typeof database.muralChannels !== "object") database.muralChannels = {};
+    if (!database.communityStates || typeof database.communityStates !== "object") database.communityStates = {};
     return database;
   } catch (error) {
-    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {}, muralChannels: {} };
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {}, muralChannels: {}, communityStates: {} };
     throw error;
   }
 }
@@ -292,6 +293,19 @@ const localStore = {
       database.muralChannels[guildId] = channelId;
       await writeDatabase(database);
       return channelId;
+    });
+  },
+  async getCommunityState(guildId) {
+    await writeQueue;
+    const database = await readDatabase();
+    return database.communityStates[guildId] ?? null;
+  },
+  async setCommunityState(guildId, state) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      database.communityStates[guildId] = state;
+      await writeDatabase(database);
+      return state;
     });
   },
   async getRpCharacters(ownerId) {
@@ -384,6 +398,11 @@ function createPostgresStore() {
           )
         `);
         await pool.query(`ALTER TABLE shinobi_momoka_settings ADD COLUMN IF NOT EXISTS mural_channel_id TEXT`);
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS shinobi_community_state (
+            guild_id TEXT PRIMARY KEY, state JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          )
+        `);
         await pool.query(`
           CREATE TABLE IF NOT EXISTS shinobi_rp_characters (
             id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL,
@@ -505,6 +524,16 @@ function createPostgresStore() {
       await initialize();
       await pool.query(`INSERT INTO shinobi_momoka_settings (guild_id, chat_channel_id, mural_channel_id) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET mural_channel_id=EXCLUDED.mural_channel_id, updated_at=NOW()`, [guildId, "", channelId]);
       return channelId;
+    },
+    async getCommunityState(guildId) {
+      await initialize();
+      const result = await pool.query("SELECT state FROM shinobi_community_state WHERE guild_id=$1", [guildId]);
+      return result.rows[0]?.state ?? null;
+    },
+    async setCommunityState(guildId, state) {
+      await initialize();
+      await pool.query(`INSERT INTO shinobi_community_state (guild_id, state) VALUES ($1, $2::jsonb) ON CONFLICT (guild_id) DO UPDATE SET state=EXCLUDED.state, updated_at=NOW()`, [guildId, JSON.stringify(state)]);
+      return state;
     },
     async getRpCharacters(ownerId) {
       await initialize();
@@ -842,6 +871,7 @@ export async function startDiscordBot() {
     ]
   });
   await setupSocialInteractions(client, store);
+  const { noteCommunityActivity } = await import("./community.js");
 
   client.once("ready", () => {
     console.log(`Momoka conectada ao Discord como ${client.user.tag}.`);
@@ -850,6 +880,7 @@ export async function startDiscordBot() {
   client.on("messageCreate", async (message) => {
     try {
       if (!message.guild || message.author.bot || !message.content.trim()) return;
+      noteCommunityActivity(message);
       if (/^RP\./i.test(message.content.trimStart())) {
         const firstRpDelivery = await store.claimMessage(`discord:${message.id}`);
         if (!firstRpDelivery) return;
