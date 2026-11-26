@@ -16,7 +16,8 @@ import {
   TextInputBuilder,
   TextInputStyle,
   StringSelectMenuBuilder,
-  PermissionFlagsBits
+  PermissionFlagsBits,
+  ChannelType
 } from "discord.js";
 
 export const SOCIAL_ACTIONS = {
@@ -360,6 +361,9 @@ export async function setupSocialInteractions(client, repository) {
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     new SlashCommandBuilder().setName("personagem").setDescription("Abre sua central privada de personagens e interpretação."),
+    new SlashCommandBuilder().setName("momoka-configurar").setDescription("Define o canal de convivência da Momoka.")
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+      .addChannelOption(option => option.setName("canal").setDescription("Canal onde a Momoka poderá conversar livremente.").addChannelTypes(ChannelType.GuildText).setRequired(true)),
     ...familyCommands(),
     ...gameSlashCommands,
     new SlashCommandBuilder().setName("ship").setDescription("Descubra a combinação fictícia entre dois personagens.")
@@ -386,6 +390,20 @@ export async function setupSocialInteractions(client, repository) {
     console.log("Interação Discord recebida:", interaction.commandName || interaction.customId || "outro");
     try {
       if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === "momoka-configurar") {
+          if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+            return interaction.reply({ content: "Somente administradores do servidor podem configurar o canal da Momoka. 🌸", ephemeral: true });
+          }
+          const channel = interaction.options.getChannel("canal");
+          if (!channel?.isTextBased?.() || !channel.guild) {
+            return interaction.reply({ content: "Escolha um canal de texto deste servidor.", ephemeral: true });
+          }
+          await repository.setMomokaChatChannel(interaction.guildId, channel.id);
+          return interaction.reply({
+            content: `Prontinho! ${channel} agora é meu cantinho de conversa. Nos outros canais, só vou falar quando alguém me mencionar. 🌸`,
+            ephemeral: true
+          });
+        }
         if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "desertar", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento", "papel"].includes(interaction.commandName)) {
           return await handleFamilyCommand(interaction, repository);
         }
