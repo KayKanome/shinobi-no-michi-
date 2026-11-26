@@ -338,7 +338,7 @@ export async function handleGamesInteraction(interaction, repository) {
     }
     await interaction.deferUpdate();
     const player = await repository.getPlayer("discord:" + owner);
-    const session = { id: code(), kind, mode: "solo", guildId: interaction.guildId, client: interaction.client, players: new Map([[owner, { id: owner, name: player?.name || interaction.user.globalName || interaction.user.username }]]), score: new Map([[owner, 0]]), correct: new Map([[owner, 0]]), answers: new Map(), repository, round: 1, status: "playing" };
+    const session = { id: code(), kind, mode: "solo", hostId: owner, guildId: interaction.guildId, client: interaction.client, players: new Map([[owner, { id: owner, name: player?.name || interaction.user.globalName || interaction.user.username }]]), score: new Map([[owner, 0]]), correct: new Map([[owner, 0]]), answers: new Map(), repository, round: 1, status: "playing" };
     session.questionUsed = new Set(); sessions.set(session.id, session); session.question = question(kind, 1, Date.now() % 100000, session.questionUsed);
     await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("Preparando seu desafio...")], components: [] });
     session.edit = payload => interaction.editReply(payload); await render(session); return true;
