@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: renkage-discord-test
+    runtime: node
+    plan: free
+    branch: mestre-rpg
+    rootDir: .
+    buildCommand: npm install
+    startCommand: node mestre-rpg/src/index.js
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MESTRE_DISCORD_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: MESTRE_AI_MODEL
+        value: openai/gpt-4o-mini
