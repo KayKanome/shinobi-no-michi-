@@ -1,33 +1,4 @@
-imp
-  if (action === "categoria-adicionar") {
-    const category = interaction.options.getChannel("categoria");
-    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
-    if (ignored.includes(category.id)) return interaction.reply({ content: "Essa categoria já está protegida. 🌸", ephemeral: true });
-    state.newspaperIgnoredCategoryIds = [...ignored, category.id];
-    const kept = [];
-    for (const item of state.newspaperEntries || []) if (!(await isNewspaperExcluded(client, state, item.channelId))) kept.push(item);
-    state.newspaperEntries = kept;
-    const pending = pendingEditions.get(interaction.guildId);
-    if (pending) {
-      const next = [];
-      for (const item of pending.entries) if (!(await isNewspaperExcluded(client, state, item.channelId))) next.push(item);
-      pending.entries = next;
-      if (!next.length) { clearTimeout(pending.timer); pendingEditions.delete(interaction.guildId); }
-    }
-    await saveState(repository, interaction.guildId, state);
-    return interaction.reply({ content: "🔒 A categoria **" + category.name + "** e todos os canais dentro dela estão excluídos do Jornal.", ephemeral: true });
-  }
-  if (action === "categoria-remover") {
-    const category = interaction.options.getChannel("categoria");
-    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
-    state.newspaperIgnoredCategoryIds = ignored.filter(id => id !== category.id);
-    await saveState(repository, interaction.guildId, state);
-    return interaction.reply({ content: "A categoria **" + category.name + "** foi removida da lista manual de bloqueio. Categorias identificadas como staff continuam protegidas automaticamente. 🌸", ephemeral: true });
-  }
-  if (action === "categoria-listar") {
-    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
-    return interaction.reply({ content: ignored.length ? "🔒 **Categorias ignoradas:**\\n" + ignored.map(id => "<#" + id + ">").join("\\n") : "Nenhuma categoria adicionada manualmente. Categorias com nomes de staff continuam protegidas automaticamente. 🌸", ephemeral: true });
-  }ort { EmbedBuilder, SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
+import { EmbedBuilder, SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
 
 const PINK = 0xE879B5;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -105,10 +76,11 @@ async function isNewspaperExcluded(client, state, channelId) {
   const parentId = channel?.parentId || null;
   const ignoredCategories = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
   if (parentId && ignoredCategories.includes(parentId)) return true;
-  const categoryName = String(channel?.parent?.name || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const categoryName = String(channel?.parent?.name || "").normalize("NFD").replace(/\\p{M}/gu, "").toLowerCase();
   return /staff|equipe|modera|administra|diretoria|reuniao/.test(categoryName);
 }
-\nasync function publishEdition(client, repository, guildId, label, entries, weekly = false) {
+
+async function publishEdition(client, repository, guildId, label, entries, weekly = false) {
   const state = await getState(repository, guildId);
   const channelId = state.newspaperChannelId;
   const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
@@ -228,6 +200,36 @@ export async function handleNewspaperCommand(interaction, client, repository) {
       ephemeral: true
     });
     return true;
+  }
+
+  if (action === "categoria-adicionar") {
+    const category = interaction.options.getChannel("categoria");
+    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
+    if (ignored.includes(category.id)) return interaction.reply({ content: "Essa categoria já está protegida. 🌸", ephemeral: true });
+    state.newspaperIgnoredCategoryIds = [...ignored, category.id];
+    const kept = [];
+    for (const item of state.newspaperEntries || []) if (!(await isNewspaperExcluded(client, state, item.channelId))) kept.push(item);
+    state.newspaperEntries = kept;
+    const pending = pendingEditions.get(interaction.guildId);
+    if (pending) {
+      const next = [];
+      for (const item of pending.entries) if (!(await isNewspaperExcluded(client, state, item.channelId))) next.push(item);
+      pending.entries = next;
+      if (!next.length) { clearTimeout(pending.timer); pendingEditions.delete(interaction.guildId); }
+    }
+    await saveState(repository, interaction.guildId, state);
+    return interaction.reply({ content: "🔒 A categoria **" + category.name + "** e todos os canais dentro dela estão excluídos do Jornal.", ephemeral: true });
+  }
+  if (action === "categoria-remover") {
+    const category = interaction.options.getChannel("categoria");
+    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
+    state.newspaperIgnoredCategoryIds = ignored.filter(id => id !== category.id);
+    await saveState(repository, interaction.guildId, state);
+    return interaction.reply({ content: "A categoria **" + category.name + "** foi removida da lista manual de bloqueio. Categorias identificadas como staff continuam protegidas automaticamente. 🌸", ephemeral: true });
+  }
+  if (action === "categoria-listar") {
+    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
+    return interaction.reply({ content: ignored.length ? "🔒 **Categorias ignoradas:**\\n" + ignored.map(id => "<#" + id + ">").join("\\n") : "Nenhuma categoria adicionada manualmente. Categorias com nomes de staff continuam protegidas automaticamente. 🌸", ephemeral: true });
   }
   await interaction.deferReply({ ephemeral: true });
   const entries = (state.newspaperEntries || []).slice(-20);
