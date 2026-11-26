@@ -89,7 +89,16 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
       const spousePlacement=placements.find(p=>!p.item.root && p.item.tag!=="Irmão");
       if(spousePlacement){
         const rootPlacement=placements.find(p=>p.item.root);
-        coupleConnection={rootX:rootPlacement.x+cardW/2,spouseX:spousePlacement.x+cardW/2,unionY:y+cardH+28,childLineY:(layouts[3]?.y||y+cardH+100)-26};
+        if((family.children||[]).length){
+          coupleConnection={
+            rootX:rootPlacement.x+cardW/2,
+            spouseX:spousePlacement.x+cardW/2,
+            unionY:y+cardH+28,
+            childLineY:(layouts[3]?.y||y+cardH+100)-26,
+            childCenter:W/2,
+            childCardY:layouts[3]?.y||y+cardH+100
+          };
+        }
       }
       drawPlacements(placements,y,g.color);
     } else {
@@ -112,9 +121,9 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
     centers.forEach(cx=>svg+=`<path d="M ${cx} ${lineY} V ${y-4}" stroke="#9D8056" stroke-width="6" fill="none"/><circle cx="${cx}" cy="${lineY}" r="8" fill="#B48A4F"/>`);
   }
   if(coupleConnection){
-    const {rootX,spouseX,unionY,childLineY}=coupleConnection;
+    const {rootX,spouseX,unionY,childLineY,childCenter,childCardY}=coupleConnection;
     const center=(rootX+spouseX)/2;
-    svg+=`<path d="M ${rootX} ${unionY-10} V ${unionY} H ${spouseX} V ${unionY-10} M ${center} ${unionY} V ${childLineY}" stroke="#9D8056" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="${center}" cy="${unionY}" r="10" fill="#B48A4F"/>`;
+    svg+=`<path d="M ${rootX} ${unionY-10} V ${unionY} H ${spouseX} V ${unionY-10} M ${center} ${unionY} V ${childLineY} H ${childCenter} V ${childCardY-4}" stroke="#9D8056" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="${center}" cy="${unionY}" r="10" fill="#B48A4F"/><circle cx="${childCenter}" cy="${childLineY}" r="8" fill="#B48A4F"/>`;
   }
   svg+=`<g fill="#8A6A3F" opacity=".8"><path d="M150 ${H-115} q35 -42 70 0 q-35 -12 -70 0 M1380 ${H-115} q35 -42 70 0 q-35 -12 -70 0"/></g>
   <text x="800" y="${H-90}" text-anchor="middle" font-family="Georgia,serif" font-size="22" fill="#765B37">Cada vínculo é uma escolha. Cada geração, um novo capítulo.</text>
