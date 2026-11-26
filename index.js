@@ -867,13 +867,16 @@ export async function startDiscordBot() {
     intents: [
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMessages,
+      GatewayIntentBits.GuildPresences,
       GatewayIntentBits.MessageContent
     ]
   });
   await setupSocialInteractions(client, store);
-  const { noteCommunityActivity } = await import("./community.js");
+  const { noteCommunityActivity, initializeCommunityPresence, updateCommunityPresence } = await import("./community.js");
+  client.on("presenceUpdate", (oldPresence, newPresence) => updateCommunityPresence(oldPresence, newPresence));
 
   client.once("ready", () => {
+    initializeCommunityPresence(client);
     console.log(`Momoka conectada ao Discord como ${client.user.tag}.`);
   });
 
