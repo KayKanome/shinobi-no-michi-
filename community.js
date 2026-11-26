@@ -648,18 +648,38 @@ export function startCommunityAutomation(client, repository) {
         const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
         if (state.activityDay !== today) { state.activityDay = today; state.activitiesToday = 0; await writeState(repository, guildId, state); }
         if (!state.autoEnabled || state.active?.status === "active" || Number(state.activitiesToday || 0) >= 3) continue;
+        const onlineCount = onlineMembers.get(guildId)?.size ?? 0;
         const offlineAt = offlineSince.get(guildId);
-        if (!offlineAt || Date.now() - offlineAt < OFFLINE_GRACE_MS) continue;
-        const idleAt = lastActivity.get(guildId) || offlineAt;
+        const idleAt = lastActivity.get(guildId) || offlineAt || Date.now();
         if (Date.now() - idleAt < IDLE_MS) continue;
         if (Date.now() - Number(state.lastAutoAt || 0) < AUTO_COOLDOWN_MS) continue;
-        const configuredChatId = await repository.getMomokaChatChannel(guildId).catch(() => null);
-        const channelId = configuredChatId || state.eventChannelId || lastActivityChannel.get(guildId);
-        const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
-        if (!channel?.isTextBased?.() || !channel.threads?.create) continue;
-        if (Math.random() < 0.5) {
-          await startAutomaticGame(client, repository, guildId, channel, state);
-        } else {
+
+        // Quando há gente online, a Momoka abre uma sala para jogar junto.
+        // Quando todos estão offline, publica uma missão que ficará disponível para depois.
+        if (onlineCount >= 2) {
+          const configuredChatId = await repository.getMomokaChatChannel(guildId).catch(() => null);
+          const channelId = configuredChatId || state.eventChannelId || lastActivityChannel.get(guildId);
+          const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
+          if (!channel?.isTextBased?.() || !channel.threads?.create) continue;
+          if (Math.random() < 0.5) {
+            await startAutomaticGame(client, repository, guildId, channel, state);
+          } else {
+            await createEvent(client, repository, guildId, channel, {
+              ...chooseSurprise(state), kind: "automatic"
+            });
+            const refreshed = await readState(repository, guildId);
+            refreshed.lastAutoAt = Date.now();
+            refreshed.activitiesToday = Number(refreshed.activitiesToday || 0) + 1;
+            refreshed.activityDay = today;
+            refreshed.recentScenarioIds = state.recentScenarioIds;
+            await writeState(repository, guildId, refreshed);
+          }
+        } else if (onlineCount === 0) {
+          if (!offlineAt || Date.now() - offlineAt < OFFLINE_GRACE_MS) continue;
+          const configuredChatId = await repository.getMomokaChatChannel(guildId).catch(() => null);
+          const channelId = configuredChatId || state.eventChannelId || lastActivityChannel.get(guildId);
+          const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
+          if (!channel?.isTextBased?.()) continue;
           await createEvent(client, repository, guildId, channel, {
             ...chooseSurprise(state), kind: "automatic"
           });
