@@ -1,4 +1,5 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import { recordCommunityGame } from "./community.js";
 
 const GAMES = {
   word: { name: "Palavra Shinobi", emoji: "📜" },
@@ -238,6 +239,7 @@ async function end(session) {
   for (const p of session.players.values()) {
     const points = session.score.get(p.id) || 0;
     const saved = await saveScore(session.repository, p.id, session.kind, points, session.correct.get(p.id) || 0);
+    await recordCommunityGame(session.client, session.repository, session.guildId, p.id, points).catch(error => console.error("Falha ao registrar pontos da missão:", error.message));
     if (saved?.isNewRecord && session.guildId && session.client) {
       try {
         const muralId = await session.repository.getMuralChannel(session.guildId);
