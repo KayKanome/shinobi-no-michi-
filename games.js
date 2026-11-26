@@ -292,15 +292,14 @@ async function ranking(interaction, repository, kind) {
     .sort((a, b) => kind === "all" ? b.stats.totalPoints - a.stats.totalPoints : b.stats.byGame[kind].points - a.stats.byGame[kind].points).slice(0, 10);
   const desc = rows.length ? rows.map((p, i) => (i + 1) + ". **" + p.name + "** — " + (kind === "all" ? p.stats.totalPoints : p.stats.byGame[kind].points) + " pts").join("\n") : "Ainda não há pontuações. Seja o primeiro a jogar!";
   const title = kind === "all" ? "🏆 Ranking geral dos jogos" : GAMES[kind].emoji + " Ranking — " + GAMES[kind].name;
-  return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle(title).setDescription(desc)], components: [] });
+  const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle(title).setDescription(desc);
+  if (interaction.isMessageComponent()) return interaction.followUp({ embeds: [embed], ephemeral: false });
+  return interaction.editReply({ embeds: [embed], components: [] });
 }
 export async function handleGamesCommand(interaction, repository) {
   if (interaction.commandName === "jogo") return interaction.reply({ ...modePanel(interaction.user.id), ephemeral: true });
-  await interaction.deferReply({ ephemeral: true });
-  const players = await repository.getAllPlayers();
-  const rows = players.map(p => ({ name: p.name, stats: p.gameStats || {} })).filter(p => (p.stats.totalPoints || 0) > 0).sort((a, b) => b.stats.totalPoints - a.stats.totalPoints).slice(0, 10);
-  const desc = rows.length ? rows.map((p, i) => (i + 1) + ". **" + p.name + "** — " + p.stats.totalPoints + " pts").join("\n") : "Ainda não há pontuações. Seja o primeiro a jogar!";
-  return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xE89BB5).setTitle("🏆 Ranking geral dos jogos").setDescription(desc)] });
+  await interaction.deferReply();
+  return ranking(interaction, repository, "all");
 }
 export async function handleGamesInteraction(interaction, repository) {
   if (!interaction.customId?.startsWith("games:")) return false;
