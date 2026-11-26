@@ -135,8 +135,9 @@ export function buildShipEmbed(first, second) {
     .setThumbnail(second.displayAvatarURL({ extension: "png", size: 256 }))
     .addFields(
       { name: "🌸 Dupla analisada", value: "**" + firstName + "**  ×  **" + secondName + "**" },
-      { name: "💗 Sintonia da dupla", value: "**" + result.percentage + "%**\n" + meter, inline: true },
-      { name: "🔮 Veredito da Momoka", value: result.emoji + " **" + result.label + "**\n" + result.description }
+      { name: "💗 Intensidade do laço", value: "**" + result.percentage + "%**\n" + meter, inline: true },
+      { name: "🔮 Veredito da Momoka", value: result.emoji + " **" + result.label + "**\n" + result.description },
+      { name: "💬 Momoka", value: "*" + result.momoka + "*" }
     )
     .setFooter({ text: "Shinobi no Michi • Resultado fictício para diversão" })
     .setTimestamp();
