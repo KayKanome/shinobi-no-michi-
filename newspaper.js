@@ -76,7 +76,7 @@ async function isNewspaperExcluded(client, state, channelId) {
   const parentId = channel?.parentId || null;
   const ignoredCategories = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
   if (parentId && ignoredCategories.includes(parentId)) return true;
-  const categoryName = String(channel?.parent?.name || "").normalize("NFD").replace(/\\p{M}/gu, "").toLowerCase();
+  const categoryName = String(channel?.parent?.name || "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   return /staff|equipe|modera|administra|diretoria|reuniao/.test(categoryName);
 }
 
