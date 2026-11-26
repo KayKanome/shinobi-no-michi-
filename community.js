@@ -234,7 +234,7 @@ export const communitySlashCommands = [
       .addIntegerOption(o => o.setName("meta").setDescription("Pontos coletivos necessários").setMinValue(10).setMaxValue(10000).setRequired(true)))
     .addSubcommand(s => s.setName("forcar").setDescription("Faz a Momoka lançar uma missão surpresa agora."))
     .addSubcommand(s => s.setName("parar").setDescription("Encerra a missão comunitária ativa."))
-    .addSubcommand(s => s.setName("ativar").setDescription("Ativa uma missão surpresa semanal quando o chat ficar parado."))
+    .addSubcommand(s => s.setName("ativar").setDescription("Ativa missões surpresa quando não houver membros online."))
     .addSubcommand(s => s.setName("desativar").setDescription("Desativa o início automático de missões.")),
   new SlashCommandBuilder().setName("evento").setDescription("Cria e controla eventos da aldeia.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
@@ -262,7 +262,7 @@ export async function handleCommunityCommand(interaction, client, repository) {
   if (interaction.commandName === "missao" && action === "ativar") {
     state.autoEnabled = true;
     await writeState(repository, guildId, state);
-    await interaction.reply({ content: "Missões surpresa ativadas! Se o chat ficar 90 minutos sem atividade, a Momoka poderá lançar uma missão automática, no máximo uma vez por semana. 🌸", ephemeral: true });
+    await interaction.reply({ content: "Missões surpresa ativadas! Quando não houver membros online por 5 minutos, a Momoka poderá lançar uma missão automática, no máximo uma vez por semana. 🌸", ephemeral: true });
     return true;
   }
   if (interaction.commandName === "missao" && action === "desativar") {
@@ -304,6 +304,7 @@ export async function handleCommunityCommand(interaction, client, repository) {
     });
     const refreshed = await readState(repository, guildId);
     refreshed.lastAutoAt = Date.now();
+    refreshed.recentScenarioIds = state.recentScenarioIds;
     await writeState(repository, guildId, refreshed);
     await interaction.reply({ content: "Missão surpresa publicada em " + channel + "! 🌸", ephemeral: true });
     return true;
