@@ -3,6 +3,7 @@ import { setupMomokaChat } from "./momoka-ai.js";
 import { familyCommands, handleFamilyCommand } from "./family.js";
 import { renderFamilyTree } from "./family-tree.js";
 import { buildGamesPanel, gameSlashCommands, handleGamesCommand, handleGamesInteraction } from "./games.js";
+import { communitySlashCommands, handleCommunityCommand, startCommunityAutomation } from "./community.js";
 
 import {
   ActionRowBuilder,
@@ -358,6 +359,7 @@ export async function handleRpMessage(message, client, repository) {
 
 export async function setupSocialInteractions(client, repository) {
   setupMomokaChat(client, repository);
+  startCommunityAutomation(client, repository);
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     new SlashCommandBuilder().setName("personagem").setDescription("Abre sua central privada de personagens e interpretação."),
@@ -369,6 +371,7 @@ export async function setupSocialInteractions(client, repository) {
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
       .addChannelOption(option => option.setName("canal").setDescription("Canal onde a Momoka poderá conversar livremente.").addChannelTypes(ChannelType.GuildText).setRequired(true)),
     ...familyCommands(),
+    ...communitySlashCommands,
     ...gameSlashCommands,
     new SlashCommandBuilder().setName("ship").setDescription("Descubra a combinação fictícia entre dois personagens.")
       .addUserOption(option => option.setName("jogador1").setDescription("Primeira pessoa").setRequired(true))
@@ -404,6 +407,9 @@ export async function setupSocialInteractions(client, repository) {
           }
           await repository.setMuralChannel(interaction.guildId, channel.id);
           return interaction.reply({ content: `Mural da Vila configurado em ${channel}! A Momoka publicará ali os avisos de novos recordes pessoais. 🏅`, ephemeral: true });
+        }
+        if (["missao", "evento"].includes(interaction.commandName)) {
+          return await handleCommunityCommand(interaction, client, repository);
         }
         if (interaction.commandName === "momoka-configurar") {
           if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
