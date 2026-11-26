@@ -92,14 +92,14 @@ export function isSocialPanelOwner(customId, userId) {
 }
 
 const SHIP_TYPES = [
-  { min: 1, max: 12, label: "Inimigos jurados", emoji: "🌑", color: 0x80536B, description: "Os registros apontam uma relação marcada por desconfiança e conflitos. É melhor manter os olhos abertos.", momoka: "Eita... acho melhor eu ficar fora dessa história. 😅" },
-  { min: 13, max: 25, label: "Rivais declarados", emoji: "⚔️", color: 0xE6A23C, description: "Competição acirrada e uma vontade constante de provar quem é o melhor. Nenhum dos dois costuma recuar.", momoka: "Isso promete! Só não me peçam para escolher um lado. 👀" },
-  { min: 26, max: 38, label: "Caos em dobro", emoji: "🎭", color: 0xA58AD2, description: "Quando estão juntos, a tranquilidade vai embora. Imprevisíveis, barulhentos e difíceis de esquecer.", momoka: "Vou deixar um relatório pronto... por precaução. 🤭" },
-  { min: 39, max: 51, label: "Parceiros de missão", emoji: "🥷", color: 0x6798C9, description: "Uma parceria promissora, com espaço para confiança, estratégia e grandes missões lado a lado.", momoka: "Uma boa equipe faz toda a diferença numa missão!" },
-  { min: 52, max: 64, label: "Amizade lendária", emoji: "🤝", color: 0x62B6A5, description: "Um laço de companheirismo que pode resistir a desafios e render histórias memoráveis.", momoka: "Guardem boas lembranças. São elas que fazem a jornada valer a pena. 🌸" },
-  { min: 65, max: 77, label: "Afinidade especial", emoji: "🌸", color: 0xD98BB8, description: "Há uma sintonia marcante entre os dois, com compreensão e proximidade que chamam a atenção.", momoka: "Hmm... parece que existe algo especial nessa dupla. 💗" },
-  { min: 78, max: 89, label: "Ship de novela", emoji: "💞", color: 0xE879A8, description: "Uma conexão cheia de emoção e reviravoltas. A vila certamente teria muito o que comentar!", momoka: "Já estou imaginando os capítulos dessa história! 🤫" },
-  { min: 90, max: 100, label: "Amor destinado", emoji: "❤️", color: 0xD94F78, description: "Um laço extraordinário, digno de uma história marcante. A Momoka encontrou uma conexão no nível máximo.", momoka: "Awww... esse encontro parece coisa escrita no destino! 🥹" }
+  { min: 1, max: 12, label: "Inimigos jurados", emoji: "🌑", color: 0x80536B, description: "Os registros apontam uma relação marcada por desconfiança e conflitos. É melhor manter os olhos abertos." },
+  { min: 13, max: 25, label: "Rivais declarados", emoji: "⚔️", color: 0xE6A23C, description: "Competição acirrada e uma vontade constante de provar quem é o melhor. Nenhum dos dois costuma recuar." },
+  { min: 26, max: 38, label: "Caos em dobro", emoji: "🎭", color: 0xA58AD2, description: "Quando estão juntos, a tranquilidade vai embora. Imprevisíveis, barulhentos e difíceis de esquecer." },
+  { min: 39, max: 51, label: "Parceiros de missão", emoji: "🥷", color: 0x6798C9, description: "Uma parceria promissora, com espaço para confiança, estratégia e grandes missões lado a lado." },
+  { min: 52, max: 64, label: "Amizade lendária", emoji: "🤝", color: 0x62B6A5, description: "Um laço de companheirismo que pode resistir a desafios e render histórias memoráveis." },
+  { min: 65, max: 77, label: "Afinidade especial", emoji: "🌸", color: 0xD98BB8, description: "Há uma sintonia marcante entre os dois, com compreensão e proximidade que chamam a atenção." },
+  { min: 78, max: 89, label: "Ship de novela", emoji: "💞", color: 0xE879A8, description: "Uma conexão cheia de emoção e reviravoltas. A vila certamente teria muito o que comentar!" },
+  { min: 90, max: 100, label: "Amor destinado", emoji: "❤️", color: 0xD94F78, description: "Um laço extraordinário, digno de uma história marcante. A Momoka encontrou uma conexão no nível máximo." }
 ];
 
 function stableHash(value) {
@@ -137,7 +137,6 @@ export function buildShipEmbed(first, second) {
       { name: "🌸 Dupla analisada", value: "**" + firstName + "**  ×  **" + secondName + "**" },
       { name: "💗 Intensidade do laço", value: "**" + result.percentage + "%**\n" + meter, inline: true },
       { name: "🔮 Veredito da Momoka", value: result.emoji + " **" + result.label + "**\n" + result.description },
-      { name: "💬 Momoka", value: "*" + result.momoka + "*" }
     )
     .setFooter({ text: "Shinobi no Michi • Resultado fictício para diversão" })
     .setTimestamp();
