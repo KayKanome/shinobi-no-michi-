@@ -27,13 +27,24 @@ function cleanDiscordContent(value, botId) {
     .slice(0, 1800);
 }
 
-function shouldIgnore(message, client) {
+export function shouldIgnoreMessage(message, client, repliedMessage = null) {
   if (!message.guild || message.author.bot || message.webhookId) return true;
   const content = String(message.content ?? "").trim();
-  if (!content || /^RP\./i.test(content) || content.startsWith("!")) return true;
-  if (content.startsWith("/") || content.startsWith("!")) return true;
-  const mentioned = message.mentions.users.has(client.user.id);
-  return false;
+  if (!content || /^RP\\./i.test(content) || content.startsWith("!") || content.startsWith("/")) return true;
+
+  const mentionedMomoka = message.mentions.users.has(client.user.id);
+  const mentionsAnotherPlayer = message.mentions.users.some(user => user.id !== client.user.id);
+  const repliesToAnotherPlayer = Boolean(
+    repliedMessage &&
+    repliedMessage.author?.id !== client.user.id &&
+    !repliedMessage.author?.bot
+  );
+
+  // Mentioning Momoka is an explicit invitation, even when another player is mentioned too.
+  if (mentionedMomoka) return false;
+
+  // Do not interrupt conversations or replies directed to other players.
+  return mentionsAnotherPlayer || repliesToAnotherPlayer;
 }
 
 async function getConversationContext(message, repository, client) {
@@ -93,10 +104,14 @@ export function setupMomokaChat(client, repository) {
   }
 
   client.on("messageCreate", async message => {
-    if (shouldIgnore(message, client)) return;
     if (!OPENROUTER_API_KEY) return;
 
     const mentioned = message.mentions.users.has(client.user.id);
+    let repliedMessage = null;
+    if (message.reference?.messageId) {
+      repliedMessage = await message.channel.messages.fetch(message.reference.messageId).catch(() => null);
+    }
+    if (shouldIgnoreMessage(message, client, repliedMessage)) return;
     const configuredChannelId = await repository.getMomokaChatChannel(message.guild.id).catch(() => null);
     const isHomeChannel = Boolean(configuredChannelId && message.channelId === configuredChannelId);
     if (!isHomeChannel && !mentioned) return;
