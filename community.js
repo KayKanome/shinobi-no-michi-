@@ -37,7 +37,7 @@ async function createEvent(client, repository, guildId, channel, data) {
   const now = Date.now();
   const event = {
     id: now.toString(36), title: data.title, description: data.description,
-    createdAt: now, endsAt: now + data.duration * 60000, goal: data.goal,
+    createdAt: now, endsAt: now + data.duration * 60000, goal: data.goal, channelId: channel.id,
     progress: 0, participants: [], status: "active", lastAnnouncedProgress: 0,
     kind: data.kind || "staff"
   };
