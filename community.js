@@ -1,4 +1,4 @@
-import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
+import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType, ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import { recordNewspaperMoment } from "./newspaper.js";
 
 const IDLE_MS = 90 * 60 * 1000;
@@ -199,11 +199,15 @@ function eventEmbed(event) {
   return new EmbedBuilder().setColor(event.status === "completed" ? 0x8DBB83 : 0xE89BB5)
     .setTitle(event.title)
     .setDescription(event.description + "\n\n**Como participar:** jogue qualquer desafio em `/jogo`. Os pontos das partidas concluídas ajudam a comunidade a cumprir a missão.\n\n**Progresso coletivo:** " + event.progress + "/" + event.goal + " pontos\n**Participantes:** " + event.participants.length + "\n**Prazo:** até " + end)
-    .setFooter({ text: event.status === "completed" ? "Missão concluída pela aldeia!" : "Missão comunitária • Shinobi no Michi" });
+    .addFields({ name: "🎁 Recompensa", value: "Participe pelo botão e receba um colecionável exclusivo deste evento." })\n    .setFooter({ text: event.status === "completed" ? "Missão concluída pela aldeia!" : "Evento comunitário • Shinobi no Michi" });
 }
 async function publishEvent(client, repository, guildId, channel, event) {
   const ping = ["automatic", "momoka"].includes(event.kind) ? { content: "@everyone", allowedMentions: { parse: ["everyone"] } } : {};
-  const message = await channel.send({ ...ping, embeds: [eventEmbed(event)] });
+  const controls = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("community:join:" + event.id).setLabel("Participar").setEmoji("🎁").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId("community:leave:" + event.id).setLabel("Sair").setEmoji("↩️").setStyle(ButtonStyle.Secondary)
+  );
+  const message = await channel.send({ ...ping, embeds: [eventEmbed(event)], components: [controls] });
   event.messageId = message.id;
   const state = await readState(repository, guildId);
   state.active = event;
@@ -255,7 +259,10 @@ export const communitySlashCommands = [
     .addSubcommand(s => s.setName("configurar").setDescription("Escolhe o canal dos eventos automáticos.")
       .addChannelOption(o => o.setName("canal").setDescription("Canal de eventos").addChannelTypes(ChannelType.GuildText).setRequired(true)))
     .addSubcommand(s => s.setName("parar").setDescription("Encerra o evento ativo."))
-    .addSubcommand(s => s.setName("forcar").setDescription("Publica um evento surpresa imediatamente.")),
+    .addSubcommand(s => s.setName("forcar").setDescription("Publica um evento surpresa imediatamente."))
+    .addSubcommand(s => s.setName("inventario").setDescription("Mostra seus colecionáveis de eventos."))
+    .addSubcommand(s => s.setName("ranking").setDescription("Mostra o ranking do evento atual."))
+    .addSubcommand(s => s.setName("estatisticas").setDescription("Mostra suas estatísticas de eventos.")),
   new SlashCommandBuilder().setName("atividade").setDescription("Testa as atividades surpresa da Momoka.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName("forcar").setDescription("Inicia uma missão ou sala de jogo surpresa agora.")),
@@ -263,13 +270,30 @@ export const communitySlashCommands = [
 
 export async function handleCommunityCommand(interaction, client, repository) {
   if (!["missao", "evento", "atividade"].includes(interaction.commandName)) return false;
+  const action = interaction.options.getSubcommand();
+  const guildId = interaction.guildId;
+  const state = await readState(repository, guildId);
+  if (interaction.commandName === "evento" && ["inventario", "ranking", "estatisticas"].includes(action)) {
+    const inventory = state.eventInventories?.[interaction.user.id] || [];
+    if (action === "inventario") {
+      const summary = inventory.length ? inventory.map(item => "• " + item.emoji + " **" + item.name + "** — " + item.eventTitle).join("\\n") : "Você ainda não possui colecionáveis. Participe de um evento para ganhar o primeiro! 🌸";
+      return interaction.reply({ content: "🎒 **Inventário de " + interaction.user.username + "**\\n" + summary, ephemeral: true });
+    }
+    if (action === "estatisticas") {
+      const count = Number(state.eventStats?.[interaction.user.id]?.joined || 0);
+      const earned = inventory.length;
+      return interaction.reply({ content: "📊 **Suas estatísticas**\\nEventos participados: **" + count + "**\\nColecionáveis conquistados: **" + earned + "**", ephemeral: true });
+    }
+    const event = state.active;
+    if (!event) return interaction.reply({ content: "Ainda não há um evento registrado para consultar o ranking. 🌸", ephemeral: true });
+    const rows = Object.entries(event.pointsByUser || {}).sort((a,b) => b[1]-a[1]).slice(0,10);
+    const ranking = rows.length ? rows.map(([id,points],i) => (i+1)+". <@"+id+"> — **"+points+" pts**").join("\\n") : "O ranking ainda está vazio. Jogue para marcar os primeiros pontos!";
+    return interaction.reply({ content: "🏆 **Ranking — " + event.title + "**\\n" + ranking, ephemeral: true });
+  }
   if (!isStaff(interaction)) {
     await interaction.reply({ content: "Este comando é exclusivo da staff com permissão de gerenciar o servidor. 🌸", ephemeral: true });
     return true;
   }
-  const action = interaction.options.getSubcommand();
-  const guildId = interaction.guildId;
-  const state = await readState(repository, guildId);
 
   if (interaction.commandName === "atividade" && action === "forcar") {
     if (state.active?.status === "active" && Date.now() <= state.active.endsAt) {
@@ -370,7 +394,57 @@ export async function handleCommunityCommand(interaction, client, repository) {
   return true;
 }
 
-export function noteCommunityActivity(message) {
+
+export async function handleCommunityInteraction(interaction, repository) {
+  if (!interaction.isButton?.() || !interaction.customId.startsWith("community:")) return false;
+  const [, action, eventId] = interaction.customId.split(":");
+  const state = await readState(repository, interaction.guildId);
+  const event = state.active;
+  if (!event || event.id !== eventId) {
+    await interaction.reply({ content: "Esse evento já terminou ou não está mais disponível. 🌸", ephemeral: true });
+    return true;
+  }
+  if (event.status !== "active" || Date.now() > event.endsAt) {
+    await interaction.reply({ content: "O prazo desse evento terminou. 🌸", ephemeral: true });
+    return true;
+  }
+  event.participants = Array.isArray(event.participants) ? event.participants : [];
+  event.rewardsByUser = event.rewardsByUser || {};
+  if (action === "join") {
+    if (event.participants.includes(interaction.user.id)) {
+      await interaction.reply({ content: "Você já está participando deste evento! 🌸", ephemeral: true });
+      return true;
+    }
+    event.participants.push(interaction.user.id);
+    const collectibles = [
+      { name: "Flor de Cerejeira", emoji: "🌸" },
+      { name: "Selo da Vila", emoji: "🏮" },
+      { name: "Fragmento Estelar", emoji: "⭐" },
+      { name: "Amuleto da Raposa", emoji: "🦊" },
+      { name: "Pétala Encantada", emoji: "🌷" },
+      { name: "Pergaminho Miniatura", emoji: "📜" }
+    ];
+    const reward = collectibles[Math.floor(Math.random() * collectibles.length)];
+    event.rewardsByUser[interaction.user.id] = reward;
+    state.eventInventories = state.eventInventories || {};
+    state.eventInventories[interaction.user.id] = state.eventInventories[interaction.user.id] || [];
+    state.eventInventories[interaction.user.id].push({ ...reward, eventId: event.id, eventTitle: event.title, obtainedAt: Date.now() });
+    state.eventStats = state.eventStats || {};
+    state.eventStats[interaction.user.id] = state.eventStats[interaction.user.id] || { joined: 0 };
+    state.eventStats[interaction.user.id].joined += 1;
+    await writeState(repository, interaction.guildId, state);
+    await interaction.reply({ content: "🎁 Você entrou em **" + event.title + "** e recebeu " + reward.emoji + " **" + reward.name + "**! Consulte com /evento inventario.", ephemeral: true });
+    return true;
+  }
+  if (action === "leave") {
+    event.participants = event.participants.filter(id => id !== interaction.user.id);
+    await writeState(repository, interaction.guildId, state);
+    await interaction.reply({ content: "Você saiu do evento. Seu colecionável conquistado continua no inventário. 🌸", ephemeral: true });
+    return true;
+  }
+  return false;
+}
+\nexport function noteCommunityActivity(message) {
   if (!message.guild || message.author.bot || !message.content?.trim()) return;
   lastActivity.set(message.guild.id, Date.now());
   lastActivityChannel.set(message.guild.id, message.channelId);
