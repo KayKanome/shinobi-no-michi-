@@ -139,29 +139,34 @@ function shuffle(list, seed) {
 }
 function question(kind, round, seed, used = new Set()) {
   if (kind === "word") {
-    const pool = WORDS[round - 1];
-    const answer = pool[(seed + round) % pool.length];
+    const tier = Math.min(round - 1, WORDS.length - 1);
+    const pool = WORDS[tier];
+    const answer = pool[Math.abs(seed + round) % pool.length];
     let letters = shuffle(answer.replace(/\s/g, "").split(""), seed + round);
     if (letters.join("") === answer.replace(/\s/g, "")) letters.reverse();
     const other = shuffle(WORDS.flat().filter(x => x !== answer), seed + round).slice(0, 3);
     const choices = shuffle([answer, ...other], seed + 44);
-    return { title: "📜 Palavra Shinobi", prompt: "**Nível " + round + "/10**\nDesembaralhe as letras:\n\n# " + letters.join(" "), choices, answer: choices.indexOf(answer), explanation: "A palavra era **" + answer + "**." };
+    return { title: "📜 Palavra Shinobi", prompt: "**Nível " + round + "**\nDesembaralhe as letras:\n\n# " + letters.join(" "), choices, answer: choices.indexOf(answer), explanation: "A palavra era **" + answer + "**." };
   }
   if (kind === "quiz" || kind === "who") {
     const bank = kind === "quiz" ? QUIZ : WHO;
-    const tier = Math.floor((round - 1) / 2);
+    const tier = Math.min(Math.floor((round - 1) / 2), 4);
     const start = tier * 10;
-    const available = Array.from({ length: 10 }, (_, i) => start + i).filter(i => !used.has(kind + ":" + i));
-    const index = available.length ? available[Math.abs(seed) % available.length] : start + (round % 10);
+    let available = Array.from({ length: Math.min(10, bank.length - start) }, (_, i) => start + i).filter(i => !used.has(kind + ":" + i));
+    if (!available.length) {
+      for (const key of [...used]) if (key.startsWith(kind + ":")) used.delete(key);
+      available = Array.from({ length: Math.min(10, bank.length - start) }, (_, i) => start + i);
+    }
+    const index = available[Math.abs(seed) % available.length];
     used.add(kind + ":" + index);
     const item = bank[index];
-    return { title: GAMES[kind].emoji + " " + GAMES[kind].name, prompt: "**Nível " + round + "/10**\n" + item[0], choices: item[1], answer: item[2], explanation: "Resposta: **" + item[1][item[2]] + "**." };
+    return { title: GAMES[kind].emoji + " " + GAMES[kind].name, prompt: "**Nível " + round + "**\n" + item[0], choices: item[1], answer: item[2], explanation: "Resposta: **" + item[1][item[2]] + "**." };
   }
   const a = 1 + ((seed * 3 + round * 2) % (round + 5));
   const b = 1 + ((seed * 7 + round * 3) % (round + 5));
   const sum = a + b;
   const choices = shuffle([sum, sum + 1, Math.max(2, sum - 2), sum + 3], seed + round).map(String);
-  return { title: "🎲 Desafio dos dados", prompt: "**Nível " + round + "/10**\nQual é a soma dos dois dados?\n\n# 🎲 " + a + " + " + b + " = ?", choices, answer: choices.indexOf(String(sum)), explanation: "A soma correta é **" + sum + "**." };
+  return { title: "🎲 Desafio dos dados", prompt: "**Nível " + round + "**\nQual é a soma dos dois dados?\n\n# 🎲 " + a + " + " + b + " = ?", choices, answer: choices.indexOf(String(sum)), explanation: "A soma correta é **" + sum + "**." };
 }
 function code() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
 function editSession(session, payload) { return session.mode === "solo" ? session.edit(payload) : session.message.edit(payload); }
@@ -172,7 +177,7 @@ function buttons(session) {
 }
 function modePanel(owner) {
   const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle("🎮 Jogos Shinobi")
-    .setDescription("Escolha um jogo e o modo de partida. São 10 rodadas, dificuldade progressiva e 20 segundos por resposta.\n\nNo multiplayer, todos respondem às mesmas perguntas. Errar não tira pontos nem Ryō.");
+    .setDescription("No modo solo, a jornada não tem limite de rodadas: um erro encerra a partida e salva os pontos conquistados. No multiplayer, são 10 rodadas. Cada resposta tem 20 segundos.\n\nNo multiplayer, todos respondem às mesmas perguntas. Errar não tira pontos nem Ryō.");
   const rows = Object.entries(GAMES).map(([key, game]) => new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId("games:solo:" + key + ":" + owner).setLabel(game.emoji + " " + game.name).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId("games:multi:" + key + ":" + owner).setLabel("Multiplayer").setStyle(ButtonStyle.Success)
@@ -204,7 +209,7 @@ async function render(session) {
   clearTimeout(session.timer);
   session.answers.clear();
   const scores = [...session.players.values()].map(p => p.name + ": **" + (session.score.get(p.id) || 0) + " pts**").join("\n");
-  const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle(session.question.title + " • Rodada " + session.round + "/10")
+  const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle(session.question.title + " • Rodada " + session.round)
     .setDescription(session.question.prompt + "\n\n⏱️ **20 segundos**" + (session.mode === "multi" ? "\n\n**Placar**\n" + scores : ""));
   await editSession(session, { embeds: [embed], components: buttons(session) });
   session.status = "playing";
@@ -233,7 +238,7 @@ async function saveScore(repository, id, kind, points, correct) {
   await repository.savePlayer(player);
   return { isNewRecord, previousBest, points, name: player.name || "Shinobi" };
 }
-async function end(session) {
+async function end(session, extraDescription = "") {
   clearTimeout(session.timer); session.status = "finished";
   const result = [];
   for (const p of session.players.values()) {
@@ -259,7 +264,7 @@ async function end(session) {
   result.sort((a, b) => b.points - a.points);
   const lines = result.map((p, i) => (i + 1) + ". **" + p.name + "** — " + p.points + " pts").join("\n");
   const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle("🏆 Partida concluída!")
-    .setDescription(lines + "\n\nResultado salvo no ranking! Medalhas e títulos são registrados no perfil. Ryō não é perdido por errar.");
+    .setDescription(lines + "\n\nResultado salvo no ranking! Medalhas e títulos são registrados no perfil. Ryō não é perdido por errar." + extraDescription);
   await editSession(session, { embeds: [embed], components: [] });
   sessions.delete(session.id);
   if (session.roomCode) rooms.delete(session.roomCode);
@@ -271,13 +276,16 @@ async function soloResult(session, correct, timeout = false) {
     const points = 10 + session.round * 2;
     session.score.set(session.hostId, session.score.get(session.hostId) + points);
     session.correct.set(session.hostId, session.correct.get(session.hostId) + 1);
+  } else {
+    const reason = timeout ? "⏰ O tempo acabou!" : "🌸 Desta vez não foi!";
+    await end(session, "\\n\\n" + reason + " A partida terminou na rodada " + session.round + ".\\n" + session.question.explanation + "\\n\\n**Pontuação conquistada nesta partida:** " + session.score.get(session.hostId) + " pts.");
+    return;
   }
-  const embed = new EmbedBuilder().setColor(correct ? 0x8DBB83 : 0xD97878)
-    .setTitle(correct ? "🎉 Muito bem! Você acertou!" : timeout ? "⏰ O tempo acabou!" : "🌸 Boa tentativa!")
-    .setDescription((correct ? "A Momoka está orgulhosa! +" + (10 + session.round * 2) + " pontos.\n" : "Continue tentando! Errar faz parte do aprendizado.\n") + session.question.explanation + "\n\n**Pontuação:** " + session.score.get(session.hostId) + " pts");
-  const label = session.round === TOTAL_ROUNDS ? "Ver resultado" : "Próxima rodada";
+  const embed = new EmbedBuilder().setColor(0x8DBB83)
+    .setTitle("🎉 Muito bem! Você acertou!")
+    .setDescription("A Momoka está orgulhosa! +" + (10 + session.round * 2) + " pontos.\\n" + session.question.explanation + "\\n\\n**Pontuação da partida:** " + session.score.get(session.hostId) + " pts");
   await editSession(session, { embeds: [embed], components: [new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("games:next:" + session.id + ":" + session.round).setLabel(label).setEmoji("➡️").setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId("games:next:" + session.id + ":" + session.round).setLabel("Próxima rodada").setEmoji("➡️").setStyle(ButtonStyle.Success)
   )] });
   session.status = "between";
 }
@@ -374,8 +382,7 @@ export async function handleGamesInteraction(interaction, repository) {
     const session = sessions.get(p[2]);
     if (!session || session.hostId !== interaction.user.id || session.status !== "between") { await interaction.reply({ content: "Esta rodada não está disponível.", ephemeral: true }); return true; }
     await interaction.deferUpdate();
-    if (session.round >= TOTAL_ROUNDS) await end(session);
-    else { session.round++; session.question = question(session.kind, session.round, Date.now() % 100000, session.questionUsed); await render(session); }
+    session.round++; session.question = question(session.kind, session.round, Date.now() % 100000, session.questionUsed); await render(session);
     return true;
   }
   if (action === "rank") {
