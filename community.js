@@ -464,7 +464,7 @@ export async function handleCommunityInteraction(interaction, repository) {
   }
   return false;
 }
-\nexport function noteCommunityActivity(message) {
+export function noteCommunityActivity(message) {
   if (!message.guild || message.author.bot || !message.content?.trim()) return;
   lastActivity.set(message.guild.id, Date.now());
   lastActivityChannel.set(message.guild.id, message.channelId);
