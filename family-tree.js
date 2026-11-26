@@ -81,7 +81,9 @@ export async function renderFamilyTree({player,family,ownerId,client,repository}
   <path d="M800 285 V${H-115}" stroke="#9D8056" stroke-width="8" fill="none" stroke-linecap="round" opacity=".75"/>
   `;
   let coupleConnection = null;
-  let childAnchorCenter = W/2;
+  // O cônjuge fica à direita do personagem; os filhos devem ficar
+  // centralizados no ponto médio entre os centros dos dois cartões.
+  const childAnchorCenter = (W/2) + ((cardW+gap)/2);
   for(const layout of layouts){
     const {group:g,y,index}=layout;
     svg+=`<text x="95" y="${y-35}" font-family="Arial,sans-serif" font-size="21" font-weight="bold" letter-spacing="3" fill="${g.color}">${g.label}</text>`;
@@ -97,13 +99,12 @@ export async function renderFamilyTree({player,family,ownerId,client,repository}
       if(spousePlacement){
         const rootPlacement=placements.find(p=>p.item.root);
         if((family.children||[]).length){
-          childAnchorCenter=(rootPlacement.x+spousePlacement.x+cardW)/2;
           coupleConnection={
             rootX:rootPlacement.x+cardW/2,
             spouseX:spousePlacement.x+cardW/2,
             unionY:y+cardH+28,
             childLineY:(layouts[3]?.y||y+cardH+100)-26,
-            childCenter:childAnchorCenter,
+            childCenter:(rootPlacement.x+cardW/2 + spousePlacement.x+cardW/2)/2,
             childCardY:layouts[3]?.y||y+cardH+100
           };
         }
