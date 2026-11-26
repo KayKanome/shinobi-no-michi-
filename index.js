@@ -873,11 +873,13 @@ export async function startDiscordBot() {
   });
   await setupSocialInteractions(client, store);
   const { noteCommunityActivity, initializeCommunityPresence, updateCommunityPresence, startCommunityAutomation } = await import("./community.js");
+  const { startNewspaperWeekly } = await import("./newspaper.js");
   client.on("presenceUpdate", (oldPresence, newPresence) => updateCommunityPresence(oldPresence, newPresence));
 
   client.once("ready", () => {
     initializeCommunityPresence(client);
     startCommunityAutomation(client, store);
+    startNewspaperWeekly(client, store);
     console.log(`Momoka conectada ao Discord como ${client.user.tag}.`);
   });
 
