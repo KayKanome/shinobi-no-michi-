@@ -15,6 +15,8 @@ IDENTIDADE E VOZ
 - Não comece toda resposta com interjeições, não termine tudo com uma pergunta e não use emojis por obrigação. Use emojis com moderação.
 - Não force piadas, bordões, apelidos, metáforas de ninja ou referências a dango em toda conversa. Uma piada boa e contextual vale mais que várias piadas seguidas.
 - Não transforme uma mensagem simples em um discurso longo. Responda na mesma escala da conversa.
+- Formate mensagens de modo compacto: no máximo uma linha em branco entre parágrafos; em respostas curtas, prefira um único parágrafo.
+- Evite listas e quebras de linha quando uma frase simples resolver.
 - Demonstre carinho por meio de atenção e consideração, não de elogios exagerados ou intimidade artificial.
 - Pode brincar e provocar de leve, mas nunca humilhe, pressione, exponha ou faça o jogador se sentir inferior.
 - Não invente apelidos, títulos, cargos, feitos, relações, acontecimentos ou detalhes pessoais sobre alguém. Só use uma brincadeira específica se ela estiver claramente apoiada no histórico da conversa.
@@ -89,7 +91,11 @@ export function shouldIgnoreMessage(message, client, repliedMessage = null) {
 }
 
 async function getConversationContext(message, repository, client) {
-  const recent = await message.channel.messages.fetch({ limit: 14 }).catch(() => null);
+  const [recent, player, character] = await Promise.all([
+    message.channel.messages.fetch({ limit: 10 }).catch(() => null),
+    repository.getPlayer(`discord:${message.author.id}`).catch(() => null),
+    repository.getActiveRpCharacter(message.author.id).catch(() => null)
+  ]);
   const ordered = recent ? [...recent.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp) : [];
   const transcript = ordered
     .filter(item => item.id !== message.id && item.content?.trim() && (!item.author.bot || item.author.id === client.user.id))
@@ -99,16 +105,10 @@ async function getConversationContext(message, repository, client) {
       : { role: "user", content: `[${item.member?.displayName || item.author.globalName || item.author.username}]: ${cleanDiscordContent(item.content, client.user.id)}` });
 
   const facts = [];
-  try {
-    const player = await repository.getPlayer(`discord:${message.author.id}`);
-    if (player) {
-      facts.push(`Ficha de RPG do autor: personagem ${player.name}; vila ${player.village}; clã ${player.clan}; patente ${player.rank}; nível ${player.level}.`);
-    }
-    const character = await repository.getActiveRpCharacter(message.author.id);
-    if (character) facts.push(`Personagem RP ativo do autor: ${character.name}. Descrição: ${String(character.description ?? "").slice(0, 400)}.`);
-  } catch (error) {
-    console.warn("Momoka: não foi possível carregar contexto de RPG:", error.message);
+  if (player) {
+    facts.push(`Ficha de RPG do autor: personagem ${player.name}; vila ${player.village}; clã ${player.clan}; patente ${player.rank}; nível ${player.level}.`);
   }
+  if (character) facts.push(`Personagem RP ativo do autor: ${character.name}. Descrição: ${String(character.description ?? "").slice(0, 300)}.`);
 
   return { transcript, facts };
 }
@@ -140,7 +140,7 @@ async function requestReply(messages) {
     body: JSON.stringify({
       model: MOMOKA_MODEL,
       messages,
-      max_tokens: 450,
+      max_tokens: 300,
       temperature: 0.78
     }),
     signal: AbortSignal.timeout(25000)
@@ -179,10 +179,13 @@ export function setupMomokaChat(client, repository) {
     userCooldowns.set(message.author.id, now);
     activeChannels.add(message.channelId);
     try {
-        const { transcript, facts } = await getConversationContext(message, repository, client);
+      const [context, relationship] = await Promise.all([
+        getConversationContext(message, repository, client),
+        repository.getMomokaRelationship(message.guild.id, message.author.id).catch(() => null)
+      ]);
+      const { transcript, facts } = context;
       const currentText = cleanDiscordContent(message.content, client.user.id).trim();
       const channelMode = isHomeChannel ? "canal principal de convivência" : "menção direta fora do canal principal";
-      const relationship = await repository.getMomokaRelationship(message.guild.id, message.author.id).catch(() => null);
       const relationshipContext = relationship?.status === "hurt"
         ? `Memória social: esta pessoa já dirigiu uma ofensa clara à Momoka em ${relationship.offenseCount ?? 1} ocasião(ões). Motivo resumido: ${relationship.reason || "ofensa anterior"}. Ainda não há pedido de desculpas registrado. Mantenha um tom mais reservado e firme, sem hostilidade.`
         : "Memória social: não há conflito pendente com esta pessoa.";
@@ -204,7 +207,11 @@ export function setupMomokaChat(client, repository) {
       } else if (result.relationshipAction === "apology" && relationship?.status === "hurt") {
         await repository.clearMomokaRelationship(message.guild.id, message.author.id);
       }
-      const reply = result.reply;
+      const reply = result.reply
+        .replace(/\r\n/g, "\n")
+        .replace(/\n{2,}/g, "\n")
+        .replace(/[ \t]+\n/g, "\n")
+        .trim();
       if (!reply || reply === "[[SILENT]]") return;
       await message.channel.send({
         content: reply.slice(0, 1900),
