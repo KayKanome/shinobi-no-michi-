@@ -23,6 +23,21 @@ export const SOCIAL_ACTIONS = {
   attack: { label: "Atacar", verb: "atacou" }
 };
 
+const SOCIAL_GIFS = {
+  hug: [
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320797848010873/icon-goal-xd.webp?ex=6b08db52&is=6b0789d2&hm=f07904f28608bcda7a2e6e8870967dc38431d163d6dad94054621c78666ba8f5&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320798137155655/hug-anime.webp?ex=6b08db52&is=6b0789d2&hm=88e20bf55d7a47c66748ea8e1f3098bfa208efa80d38662bb910a0b9b3721415&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320798439153724/hug-big-hug.webp?ex=6b08db52&is=6b0789d2&hm=9f66c29b9a281918136a7cd788f479215295c13c1601d7fb506c791493b39a0e&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320798854385695/hug-k-on.webp?ex=6b08db52&is=6b0789d2&hm=5c02e7d6645948912b421b2d86df2b10503d51dda6a67b63c48c6dff6a71ab2f&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320799173414983/yukon-child-form-embracing-ulquiorra.webp?ex=6b08db52&is=6b0789d2&hm=01b2b467a9e8df76ad22b5968f801089a0e2eaf0b153b88b2bd097164ffadf84&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320799450112110/pjsk-airi.webp?ex=6b08db52&is=6b0789d2&hm=2998103459a29eadf6e25afc4a067e9672ab916d5441aa44a94222d3643850e2&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320799773065216/anime-comfort-hug-anime-hug.webp?ex=6b08db52&is=6b0789d2&hm=5bf45062a0ecda55a07f361897d47a3c9bff871b32aae8339edb302fba87d756&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320800154619924/hugs-cute-hugs-gif.webp?ex=6b08db52&is=6b0789d2&hm=1b5f9a08c26d84c6e665857f88c8b00d0a1bca8cef9bb16bd60494c29c31bbe7&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320800465256578/anime-hug.webp?ex=6b08db52&is=6b0789d2&hm=7c61600cedd011e1cf266723aaa59a968ea46addf596bece91793d9d7d3b2fdb&",
+    "https://cdn.discordapp.com/attachments/1440733156008399080/1575320800783900752/hug-anime.gif?ex=6b08db52&is=6b0789d2&hm=d3a2217b7d984a37b41c4bc68cbd8c40df292827b6bd7bfbbe42db0b0329a5ac&"
+  ]
+};
+
 const SOCIAL_COMMANDS = {
   abracar: "hug",
   carinho: "pat",
@@ -161,7 +176,7 @@ async function publishAction(channel, actor, target, action) {
   const targetName = target.globalName || target.username;
   const embed = new EmbedBuilder()
     .setColor(0xE89BB5)
-    .setDescription("O GIF desta interação será adicionado quando você enviar o escolhido.");
+    .setImage(SOCIAL_GIFS[action]?.[Math.floor(Math.random() * SOCIAL_GIFS[action].length)] || null);
   await channel.send({
     content: formatSocialAction(actorName, targetName, action),
     embeds: [embed],
