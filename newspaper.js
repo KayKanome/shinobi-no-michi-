@@ -229,7 +229,7 @@ export async function handleNewspaperCommand(interaction, client, repository) {
   }
   if (action === "categoria-listar") {
     const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
-    return interaction.reply({ content: ignored.length ? "🔒 **Categorias ignoradas:**\\n" + ignored.map(id => "<#" + id + ">").join("\n") : "Nenhuma categoria adicionada manualmente. Categorias com nomes de staff continuam protegidas automaticamente. 🌸", ephemeral: true });
+    return interaction.reply({ content: ignored.length ? "🔒 **Categorias ignoradas:**\n" + ignored.map(id => "<#" + id + ">").join("\n") : "Nenhuma categoria adicionada manualmente. Categorias com nomes de staff continuam protegidas automaticamente. 🌸", ephemeral: true });
   }
   await interaction.deferReply({ ephemeral: true });
   const entries = (state.newspaperEntries || []).slice(-20);
