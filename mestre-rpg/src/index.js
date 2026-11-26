@@ -1,5 +1,6 @@
 import http from "node:http";
-import { Client, GatewayIntentBits, Partials } from "discord.js";
+import { Client, GatewayIntentBits, Partials, ChannelType } from "discord.js";
+import { startCharacterCreation, handleCharacterInteraction } from "./character-builder.js";
 import pg from "pg";
 import { ATTRIBUTE_LABELS, STYLES, CLANS, SKILLS, normalize, resolveCheck, getSkillBonus, getClanBonus, formatCheck } from "./engine.js";
 
@@ -20,6 +21,11 @@ await pool.query("CREATE TABLE IF NOT EXISTS mestre_characters (id BIGSERIAL PRI
 await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS clan TEXT NOT NULL DEFAULT 'Sem clã'");
 await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS primary_style TEXT NOT NULL DEFAULT 'Ninjutsu'");
 await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS secondary_style TEXT NOT NULL DEFAULT 'Taijutsu'");
+await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS rolls JSONB NOT NULL DEFAULT '[]'::jsonb");
+await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS skills JSONB NOT NULL DEFAULT '{}'::jsonb");
+await pool.query("ALTER TABLE mestre_campaigns ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'server'");
+await pool.query("ALTER TABLE mestre_campaigns ADD COLUMN IF NOT EXISTS owner_id TEXT");
+await pool.query("ALTER TABLE mestre_campaigns ADD COLUMN IF NOT EXISTS player_ids JSONB NOT NULL DEFAULT '[]'::jsonb");
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent], partials: [Partials.Channel] });
 const SYSTEM_PROMPT = "Você é o Mestre de RPG do Shinobi no Michi, narrador e árbitro imparcial de uma campanha shinobi original.\n" +
@@ -53,11 +59,23 @@ async function replyLong(message, content) {
   for (let i = 0; i < value.length; i += 1900) await message.reply(value.slice(i, i + 1900));
 }
 function helpText() {
-  return ["**MESTRE RPG — COMANDOS**", "!mestre campanha Nome — inicia campanha neste canal", "!mestre encerrar — encerra a campanha", "!mestre personagem Nome;Clã;Estilo principal;Estilo secundário — cria ficha", "!mestre ficha — consulta ficha", "!mestre teste perícia dificuldade — rola 1d20 + atributo + bônus", "!mestre ajuda — mostra ajuda", "", "Com uma campanha ativa, descreva suas ações normalmente neste canal."].join("\n");
+  return ["**MESTRE RPG — COMANDOS**", "!mestre campanha Nome — inicia campanha neste canal", "!mestre encerrar — encerra a campanha", "!renkage criar — abre a criação privada da ficha", "!renkage solo @amigo Nome — abre RP privado com um amigo", "!mestre ficha — consulta ficha", "!mestre teste perícia dificuldade — rola 1d20 + atributo + bônus", "!mestre ajuda — mostra ajuda", "", "Com uma campanha ativa, descreva suas ações normalmente neste canal."].join("\n");
 }
 async function handleCommand(message, args) {
   const sub = normalize(args[0]);
   if (sub === "ajuda" || !sub) return replyLong(message, helpText());
+  if (sub === "criar" || sub === "personagem") return startCharacterCreation(message);
+  if (sub === "solo") {
+    const friend = message.mentions.users.first();
+    const title = args.slice(2).join(" ").trim() || "Aventura de Renkage";
+    if (!friend || friend.bot || friend.id === message.author.id) return message.reply("Use !renkage solo @amigo Nome da aventura.");
+    if (!message.channel.threads) return message.reply("Este canal não permite salas privadas.");
+    const thread = await message.channel.threads.create({name:title.slice(0,90),type:ChannelType.PrivateThread,invitable:false,autoArchiveDuration:1440,reason:"Campanha privada de Renkage"});
+    await thread.members.add(message.author.id);
+    await thread.members.add(friend.id);
+    await pool.query("INSERT INTO mestre_campaigns (channel_id,guild_id,title,history,active,mode,owner_id,player_ids) VALUES ($1,$2,$3,'[]'::jsonb,TRUE,'private',$4,$5::jsonb) ON CONFLICT (channel_id) DO UPDATE SET title=EXCLUDED.title,history='[]'::jsonb,active=TRUE,mode='private',owner_id=EXCLUDED.owner_id,player_ids=EXCLUDED.player_ids,updated_at=NOW()",[thread.id,message.guildId,title,message.author.id,JSON.stringify([message.author.id,friend.id])]);
+    return message.reply("🔒 Sala privada criada: "+thread.toString()+". Renkage conduzirá a aventura apenas para vocês.");
+  }
   if (sub === "campanha") {
     const title = args.slice(1).join(" ").trim();
     if (title.length < 3) return message.reply("Dê um nome. Exemplo: !mestre campanha O Exame Chunin");
@@ -68,7 +86,7 @@ async function handleCommand(message, args) {
     await pool.query("UPDATE mestre_campaigns SET active=FALSE,updated_at=NOW() WHERE channel_id=$1", [message.channelId]);
     return message.reply("Campanha encerrada neste canal. O histórico permanece salvo.");
   }
-  if (sub === "personagem") {
+  if (sub === "personagem-antigo") {
     const fields = args.slice(1).join(" ").split(";").map(value => value.trim());
     const [name, clan = "Sem clã", primary = "Ninjutsu", secondary = "Taijutsu"] = fields;
     if (!name || name.length < 2 || name.length > 24) return message.reply("Formato: !mestre personagem Nome;Clã;Estilo principal;Estilo secundário");
@@ -82,6 +100,7 @@ async function handleCommand(message, args) {
     return message.reply("Ficha criada para **" + result.rows[0].name + "**.\nClã: **" + chosenClan + "**\nEstilo principal: **" + chosenPrimary + "** (+3 nas perícias do estilo)\nEstilo secundário: **" + chosenSecondary + "** (+1 nas perícias do estilo)\nTodos os atributos começam em 1. Use !mestre ficha.");
   }
   if (sub === "ficha") {
+    if (campaign.mode === "private" && !(campaign.player_ids || []).includes(message.author.id)) return;
     const character = await getCharacter(message.guildId, message.author.id);
     if (!character) return message.reply("Você ainda não tem ficha. Use !mestre personagem SeuNome.");
     const attributes = Object.entries(character.attributes).map(([key, value]) => "• " + (ATTRIBUTE_LABELS[key] || key) + ": **" + value + "**");
@@ -101,16 +120,27 @@ async function handleCommand(message, args) {
   return message.reply("Comando não reconhecido. Use !mestre ajuda.");
 }
 
+client.on("interactionCreate", async interaction => {
+  try { await handleCharacterInteraction(interaction,pool); }
+  catch (error) { console.error("Erro no painel de ficha:",error); if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) await interaction.reply({content:"Não consegui concluir esta etapa. Tente novamente.",ephemeral:true}).catch(()=>{}); }
+});
+
 client.on("messageCreate", async message => {
   if (message.author.bot || !message.guildId) return;
   const content = message.content.trim();
-  if (normalize(content).startsWith("!mestre")) {
+  if (normalize(content).startsWith("!mestre") || normalize(content).startsWith("!renkage")) {
     try { await handleCommand(message, content.split(/\s+/).slice(1)); }
     catch (error) { console.error("Erro no comando:", error); await message.reply("Ocorreu um erro ao executar o comando. Confira os logs."); }
     return;
   }
   const campaign = await getCampaign(message.channelId).catch(error => { console.error(error); return null; });
-  if (!campaign) return;
+  if (!campaign) {
+    if (message.mentions.has(client.user)) {
+      try { const prompt=content.replace(/<@!?\d+>/g,"").trim(); const answer=await callGM([{role:"user",content:message.author.username+" conversa fora do RP: "+prompt}],"Conversa social fora de campanha. Não controle personagens nem altere fichas."); await replyLong(message,answer.narration || "Estou por aqui. Quer conversar ou começar uma aventura?"); }
+      catch(error){console.error("Erro na conversa fora do RP:",error);}
+    }
+    return;
+  }
   try {
     const character = await getCharacter(message.guildId, message.author.id);
     const playerContext = character
