@@ -4,6 +4,7 @@ import { familyCommands, handleFamilyCommand } from "./family.js";
 import { renderFamilyTree } from "./family-tree.js";
 import { buildGamesPanel, gameSlashCommands, handleGamesCommand, handleGamesInteraction } from "./games.js";
 import { communitySlashCommands, handleCommunityCommand, startCommunityAutomation } from "./community.js";
+import { newspaperSlashCommands, handleNewspaperCommand, recordNewspaperMoment, startNewspaperWeekly } from "./newspaper.js";
 
 import {
   ActionRowBuilder,
@@ -271,17 +272,24 @@ function categoryPanel(category, ownerId, avatarUrl) {
   return { embeds: [embed], components: [back] };
 }
 
-async function publishAction(channel, actor, target, action) {
-  const config = SOCIAL_ACTIONS[action];
+async function publishAction(channel, actor, target, action, repository) {
   const actorName = actor.globalName || actor.username;
   const targetName = target.globalName || target.username;
-  const embed = new EmbedBuilder()
-    .setColor(0xE89BB5)
-    .setImage(SOCIAL_GIFS[action]?.[Math.floor(Math.random() * SOCIAL_GIFS[action].length)] || null);
-  await channel.send({
-    content: formatSocialAction(actorName, targetName, action),
-    embeds: [embed],
-    allowedMentions: { parse: [] }
+  const stories = {
+    hug: ["Um abraço inesperado!", actorName + " deu um abraço em " + targetName + "!\\n\\nÀs vezes, um abraço vale mais que mil palavras. 🌸"],
+    pat: ["Um carinho especial!", actorName + " fez carinho na cabeça de " + targetName + ".\\n\\nPequenos gestos também deixam grandes lembranças. 🌸"],
+    wave: ["Um cumprimento pela vila!", actorName + " acenou para " + targetName + ".\\n\\nUm simples olá pode começar uma boa história! 🌸"],
+    facepalm: ["Momento de vergonha alheia!", actorName + " não acreditou no que " + targetName + " acabou de aprontar.\\n\\nA Momoka prefere não fazer perguntas... 😂"],
+    attack: ["Um desafio inesperado!", actorName + " desafiou " + targetName + " para um confronto de brincadeira!\\n\\nA vila inteira ficou curiosa para saber quem leva a melhor. ⚔️"]
+  };
+  const [headline, story] = stories[action] || ["Um momento na vila!", formatSocialAction(actorName, targetName, action)];
+  const embed = new EmbedBuilder().setColor(0xE879B5).setTitle(headline)
+    .setDescription(story)
+    .setImage(SOCIAL_GIFS[action]?.[Math.floor(Math.random() * SOCIAL_GIFS[action].length)] || null)
+    .setFooter({ text: "Shinobi no Michi • Momentos da vila" }).setTimestamp();
+  await channel.send({ content: formatSocialAction(actorName, targetName, action), embeds: [embed], allowedMentions: { parse: [] } });
+  if (channel.guild?.id) await recordNewspaperMoment(repository, channel.guild.id, {
+    category: "Interação social", text: actorName + " e " + targetName + ": " + headline
   });
 }
 
@@ -349,6 +357,7 @@ export async function handleRpMessage(message, client, repository) {
   }
   try {
     await publishAsRpCharacter(message.channel, client, character, message.author.id, text);
+    await recordNewspaperMoment(repository, message.guild.id, { category: "Cena de RP", text: "Uma nova cena de RP foi interpretada por " + character.name + "." });
     await message.delete();
   } catch (error) {
     console.error("Falha ao publicar interpretação RP:", error.message);
@@ -360,6 +369,7 @@ export async function handleRpMessage(message, client, repository) {
 export async function setupSocialInteractions(client, repository) {
   setupMomokaChat(client, repository);
   startCommunityAutomation(client, repository);
+  startNewspaperWeekly(client, repository);
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     new SlashCommandBuilder().setName("personagem").setDescription("Abre sua central privada de personagens e interpretação."),
@@ -372,6 +382,7 @@ export async function setupSocialInteractions(client, repository) {
       .addChannelOption(option => option.setName("canal").setDescription("Canal onde a Momoka poderá conversar livremente.").addChannelTypes(ChannelType.GuildText).setRequired(true)),
     ...familyCommands(),
     ...communitySlashCommands,
+    ...newspaperSlashCommands,
     ...gameSlashCommands,
     new SlashCommandBuilder().setName("ship").setDescription("Descubra a combinação fictícia entre dois personagens.")
       .addUserOption(option => option.setName("jogador1").setDescription("Primeira pessoa").setRequired(true))
@@ -408,7 +419,7 @@ export async function setupSocialInteractions(client, repository) {
           await repository.setMuralChannel(interaction.guildId, channel.id);
           return interaction.reply({ content: `Mural da Vila configurado em ${channel}! A Momoka publicará ali os avisos de novos recordes pessoais. 🏅`, ephemeral: true });
         }
-        if (["missao", "evento"].includes(interaction.commandName)) {
+        if (interaction.commandName === "jornal") return await handleNewspaperCommand(interaction, client, repository);\n        if (["missao", "evento", "atividade"].includes(interaction.commandName)) {
           return await handleCommunityCommand(interaction, client, repository);
         }
         if (interaction.commandName === "momoka-configurar") {
@@ -461,7 +472,7 @@ export async function setupSocialInteractions(client, repository) {
             return interaction.reply({ content: "Escolha uma pessoa, não outro bot. 🌸", ephemeral: true });
           }
           await interaction.deferReply({ ephemeral: true });
-          await publishAction(interaction.channel, interaction.user, target, action);
+          await publishAction(interaction.channel, interaction.user, target, action, repository);
           return interaction.editReply({ content: "Interação enviada para " + target + "! 🌸" });
         }
       }
