@@ -244,7 +244,7 @@ async function end(session) {
         const mural = muralId ? await session.client.channels.fetch(muralId).catch(() => null) : null;
         if (mural?.isTextBased?.()) {
           await mural.send({
-            content: `🏅 **NOVO RECORDE PESSOAL!**\\nParabéns, <@${p.id}>! Você marcou **${points} pontos** em uma única partida e superou seu recorde anterior de **${saved.previousBest} pontos**! 🌸`,
+            content: `🏅 **NOVO RECORDE PESSOAL!**\nParabéns, <@${p.id}>! Você marcou **${points} pontos** em uma única partida e superou seu recorde anterior de **${saved.previousBest} pontos**! 🌸`,
             allowedMentions: { users: [p.id] }
           });
         }
