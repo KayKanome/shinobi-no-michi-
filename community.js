@@ -296,7 +296,7 @@ export async function handleCommunityCommand(interaction, client, repository) {
   if (interaction.commandName === "missao" && action === "ativar") {
     state.autoEnabled = true;
     await writeState(repository, guildId, state);
-    await interaction.reply({ content: "Missões surpresa ativadas! Quando não houver membros online por 5 minutos, a Momoka poderá lançar uma missão automática, no máximo uma vez por semana. 🌸", ephemeral: true });
+    await interaction.reply({ content: "Missões surpresa ativadas! Quando o servidor estiver sem membros online e o chat estiver parado, a Momoka poderá lançar até três atividades surpresa por dia, respeitando um intervalo mínimo de quatro horas. 🌸", ephemeral: true });
     return true;
   }
   if (interaction.commandName === "missao" && action === "desativar") {
