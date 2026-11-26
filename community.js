@@ -214,7 +214,7 @@ async function publishEvent(client, repository, guildId, channel, event) {
   state.active = event;
   await writeState(repository, guildId, state);
   await recordNewspaperMoment(repository, guildId, {
-    category: event.kind === "momoka" ? "Missão surpresa" : "Evento comunitário",
+    category: ["momoka", "automatic"].includes(event.kind) ? "Missão surpresa" : event.kind === "missao" ? "Missão criada" : "Evento comunitário",
     text: "A Momoka anunciou **" + event.title + "**. " + String(event.description || "").slice(0, 280),
     channelId: event.channelId
   });
@@ -441,6 +441,11 @@ export async function handleCommunityInteraction(interaction, repository) {
       state.eventStats[interaction.user.id].joined += 1;
     }
     await writeState(repository, interaction.guildId, state);
+    await recordNewspaperMoment(repository, interaction.guildId, {
+      category: "Participação em evento",
+      text: "<@" + interaction.user.id + "> entrou em **" + event.title + "** e conquistou " + reward.emoji + " **" + reward.name + "**.",
+      channelId: event.channelId
+    });
     await interaction.message.edit({ embeds: [eventEmbed(event)] }).catch(() => {});
     await interaction.reply({ content: reward ? "🎁 Você entrou em **" + event.title + "** e recebeu " + reward.emoji + " **" + reward.name + "**! Consulte com /evento inventario." : "Você entrou no evento! 🌸", ephemeral: true });
     return true;
@@ -448,6 +453,11 @@ export async function handleCommunityInteraction(interaction, repository) {
   if (action === "leave") {
     event.participants = event.participants.filter(id => id !== interaction.user.id);
     await writeState(repository, interaction.guildId, state);
+    await recordNewspaperMoment(repository, interaction.guildId, {
+      category: "Saída de evento",
+      text: "<@" + interaction.user.id + "> saiu de **" + event.title + "**.",
+      channelId: event.channelId
+    });
     await interaction.message.edit({ embeds: [eventEmbed(event)] }).catch(() => {});
     await interaction.reply({ content: "Você saiu do evento. Seu colecionável conquistado continua no inventário. 🌸", ephemeral: true });
     return true;
