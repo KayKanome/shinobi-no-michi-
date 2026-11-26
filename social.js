@@ -359,6 +359,37 @@ export async function setupSocialInteractions(client, repository) {
         return interaction.update(categoryPanel(parts[2], ownerId, avatar));
       }
 
+      if (interaction.isButton() && parts[1] === "game") {
+        const kind = parts[2];
+        if (kind === "dice") {
+          const result = Math.floor(Math.random() * 6) + 1;
+          const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle("🎲 Desafio dos dados")
+            .setDescription("Você lançou o dado e tirou **" + result + "**! " + (result === 6 ? "Um lançamento perfeito!" : "Tente novamente para buscar um 6."));
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId("social:game:dice:" + ownerId).setLabel("Lançar novamente").setEmoji("🎲").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Voltar aos jogos").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
+          );
+          return interaction.update({ embeds: [embed], components: [row] });
+        }
+        if (Object.hasOwn(SHINOBI_GAMES, kind)) return interaction.update(questionGame(kind, ownerId));
+      }
+
+      if (interaction.isButton() && parts[1] === "gameanswer") {
+        const kind = parts[2], selected = Number(parts[3]), game = SHINOBI_GAMES[kind];
+        if (!game || !Number.isInteger(selected) || selected < 0 || selected >= game.choices.length) {
+          return interaction.reply({ content: "Esta rodada não está mais disponível. Escolha outro jogo. 🌸", ephemeral: true });
+        }
+        const correct = selected === game.answer;
+        const embed = new EmbedBuilder().setColor(correct ? 0x8DBB83 : 0xD97878)
+          .setTitle(correct ? "🎉 Resposta correta!" : "🌸 Boa tentativa!")
+          .setDescription((correct ? "Você acertou! " : "A resposta correta era **" + game.choices[game.answer] + "**. ") + game.explanation);
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder().setCustomId("social:game:" + kind + ":" + ownerId).setLabel("Jogar novamente").setEmoji("🔄").setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId("social:cat:jogos:" + ownerId).setLabel("Voltar aos jogos").setEmoji("⬅️").setStyle(ButtonStyle.Secondary)
+        );
+        return interaction.update({ embeds: [embed], components: [row] });
+      }
+
       if (interaction.isButton() && parts[1] === "act") {
         const action = parts[2];
         if (!Object.hasOwn(SOCIAL_ACTIONS, action)) {
