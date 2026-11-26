@@ -21,7 +21,7 @@ function newspaperEmbed(label, body) {
   return new EmbedBuilder()
     .setColor(PINK)
     .setTitle("📰 Jornal de Konohagakure")
-    .setDescription("*" + label.toLocaleUpperCase("pt-BR") + "*\n\n" + body)
+    .setDescription(("*" + label.toLocaleUpperCase("pt-BR") + "*\n\n" + body).slice(0, 3900))
     .setFooter({ text: "Momoka • As histórias da vila, contadas por quem vive nelas." })
     .setTimestamp();
 }
