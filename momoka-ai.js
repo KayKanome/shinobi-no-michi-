@@ -1,7 +1,7 @@
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? "";
 
-const MOMOKA_MODEL = process.env.MOMOKA_MODEL ?? "gpt-4.1-mini";
-const API_URL = "https://api.openai.com/v1/chat/completions";
+const MOMOKA_MODEL = process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-ultra-550b-a55b:free";
+const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const userCooldowns = new Map();
 const activeChannels = new Set();
 
@@ -65,8 +65,10 @@ async function requestReply(messages) {
   const response = await fetch(API_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json"
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://shinobi-no-michi.onrender.com",
+      "X-Title": "Momoka - Shinobi no Michi"
     },
     body: JSON.stringify({
       model: MOMOKA_MODEL,
@@ -79,20 +81,20 @@ async function requestReply(messages) {
 
   if (!response.ok) {
     const details = await response.text().catch(() => "");
-    throw new Error(`OpenAI API respondeu ${response.status}: ${details.slice(0, 400)}`);
+    throw new Error(`OpenRouter respondeu ${response.status}: ${details.slice(0, 400)}`);
   }
   const data = await response.json();
   return String(data.choices?.[0]?.message?.content ?? "").trim();
 }
 
 export function setupMomokaChat(client, repository) {
-  if (!OPENAI_API_KEY) {
-    console.warn("Momoka IA: configure OPENAI_API_KEY no ambiente do serviço para ativar as conversas.");
+  if (!OPENROUTER_API_KEY) {
+    console.warn("Momoka IA: configure OPENROUTER_API_KEY no ambiente do serviço para ativar as conversas.");
   }
 
   client.on("messageCreate", async message => {
     if (shouldIgnore(message, client)) return;
-    if (!OPENAI_API_KEY) return;
+    if (!OPENROUTER_API_KEY) return;
 
     const mentioned = message.mentions.users.has(client.user.id);
     const configuredChannelId = await repository.getMomokaChatChannel(message.guild.id).catch(() => null);
