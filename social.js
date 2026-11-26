@@ -244,7 +244,7 @@ export async function setupSocialInteractions(client, repository) {
           if(!player)return interaction.reply({content:"Registre seu personagem primeiro com !registrar SeuNome.",ephemeral:true});
           await interaction.deferReply({ephemeral:true});
           const fam=await repository.getFamily(`discord:${owner}`);
-          const png=await renderFamilyTree({player,family:fam,ownerId:owner,client});
+          const png=await renderFamilyTree({player,family:fam,ownerId:owner,client,repository});
           const attachment=new AttachmentBuilder(png,{name:"arvore-genealogica.png"});
           const e=new EmbedBuilder().setColor(0xB68A45).setTitle(`🌳 Linhagem de ${player.name}`).setDescription("Uma história, muitos laços. Cada retrato representa alguém que faz parte da sua família.").setImage("attachment://arvore-genealogica.png").setFooter({text:"Shinobi no Michi • Árvore genealógica"});
           return interaction.editReply({embeds:[e],files:[attachment]});
