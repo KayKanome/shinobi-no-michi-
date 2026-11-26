@@ -251,7 +251,6 @@ export const communitySlashCommands = [
     .addSubcommand(s => s.setName("ativar").setDescription("Ativa missões surpresa quando não houver membros online."))
     .addSubcommand(s => s.setName("desativar").setDescription("Desativa o início automático de missões.")),
   new SlashCommandBuilder().setName("evento").setDescription("Cria e controla eventos da aldeia.")
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addSubcommand(s => s.setName("criar").setDescription("Cria um evento coletivo.")
       .addStringOption(o => o.setName("titulo").setDescription("Nome do evento").setMaxLength(80).setRequired(true))
       .addStringOption(o => o.setName("descricao").setDescription("História e objetivo do evento").setMaxLength(800).setRequired(true))
@@ -351,6 +350,11 @@ export async function handleCommunityCommand(interaction, client, repository) {
     }
     state.active.status = "stopped";
     await writeState(repository, guildId, state);
+    await recordNewspaperMoment(repository, guildId, {
+      category: "Evento encerrado",
+      text: "A staff encerrou **" + state.active.title + "** antes do prazo. Participantes registrados: " + (state.active.participants || []).length + ".",
+      channelId: state.active.channelId
+    });
     await interaction.reply({ content: "A missão/evento ativo foi encerrado. 🌸", ephemeral: true });
     return true;
   }
@@ -457,7 +461,10 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
   const event = state.active;
   if (!event || event.status !== "active" || event.kind === "automatic-game") return;
   if (Date.now() > event.endsAt) { event.status = "expired"; await writeState(repository, guildId, state); return; }
-  event.progress += Math.max(0, Number(points) || 0);
+  const earnedPoints = Math.max(0, Number(points) || 0);
+  event.progress += earnedPoints;
+  event.pointsByUser = event.pointsByUser || {};
+  event.pointsByUser[playerId] = (event.pointsByUser[playerId] || 0) + earnedPoints;
   if (!event.participants.includes(playerId)) event.participants.push(playerId);
   if (event.progress >= event.goal) {
     event.status = "completed";
@@ -476,6 +483,11 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
     await writeState(repository, guildId, state);
     const channel = await client.channels.fetch(state.eventChannelId || event.channelId).catch(() => null);
     if (channel?.isTextBased?.()) await channel.send("🌸 A missão avançou! Progresso coletivo: **" + event.progress + "/" + event.goal + "** pontos.");
+    await recordNewspaperMoment(repository, guildId, {
+      category: "Progresso de missão",
+      text: "**" + event.title + "** alcançou " + event.progress + "/" + event.goal + " pontos coletivos. Participantes: " + event.participants.length + ".",
+      channelId: event.channelId
+    });
     return;
   }
   await writeState(repository, guildId, state);
