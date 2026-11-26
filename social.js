@@ -1,5 +1,6 @@
 import { familyCommands, handleFamilyCommand } from "./family.js";
 import { renderFamilyTree } from "./family-tree.js";
+import { buildGamesPanel, gameSlashCommands, handleGamesCommand, handleGamesInteraction } from "./games.js";
 
 import {
   ActionRowBuilder,
@@ -101,11 +102,7 @@ function mainPanel(ownerId, avatarUrl) {
     .setColor(0xE89BB5)
     .setTitle("🌸 Cantinho Social da Momoka")
     .setDescription(
-      "Escolha uma categoria! Este painel é privado e só você pode controlá-lo.\\n\\n" +
-      "**🤗 Interações** — ações sociais com outros jogadores.\\n" +
-      "**🌳 Família** — adoção, casamento e árvore genealógica.\\n" +
-      "**🎮 Jogos** — quiz, Quem sou eu?, dados e Palavra Shinobi.\\n" +
-      "**🏮 Eventos** — atividades da comunidade."
+      "Seu espaço para interagir, cuidar da família, jogar e participar dos eventos. Este painel é privado e só você pode controlá-lo."
     );
 
   const rowOne = new ActionRowBuilder().addComponents(
@@ -199,7 +196,7 @@ function categoryPanel(category, ownerId, avatarUrl) {
     return {embeds:[embed],components:[row1,row2]};
   }
 
-  if (category === "jogos") return gamesPanel(ownerId);
+  if (category === "jogos") return buildGamesPanel(ownerId);
   const sections = {
     eventos: ["🏮 Eventos", "Os eventos da comunidade serão desenvolvidos em uma próxima etapa."]
   };
@@ -226,6 +223,7 @@ export async function setupSocialInteractions(client, repository) {
   const commands = [
     new SlashCommandBuilder().setName("social").setDescription("Abre seu painel social privado."),
     ...familyCommands(),
+    ...gameSlashCommands,
     ...Object.entries(SOCIAL_COMMANDS).map(([commandName, action]) =>
       new SlashCommandBuilder()
         .setName(commandName)
@@ -249,6 +247,9 @@ export async function setupSocialInteractions(client, repository) {
       if (interaction.isChatInputCommand()) {
         if (["familia", "adotar", "aceitar_adocao", "recusar_adocao", "cancelar_adocao", "desertar", "casar", "aceitar_casamento", "recusar_casamento", "cancelar_casamento", "papel"].includes(interaction.commandName)) {
           return await handleFamilyCommand(interaction, repository);
+        }
+        if (["jogo", "ranking_jogos"].includes(interaction.commandName)) {
+          return await handleGamesCommand(interaction, repository);
         }
         if (interaction.commandName === "social") {
           await interaction.deferReply({ ephemeral: true });
@@ -336,6 +337,9 @@ export async function setupSocialInteractions(client, repository) {
           const ok=result==="accepted",e=EmbedBuilder.from(interaction.message.embeds[0]).setColor(ok?0xE89BB5:0x888888).setFooter({text:ok?"Casamento confirmado! O vínculo começa neutro. Use /papel para escolher Masculino, Feminino ou Prefiro não dizer.":"Convite recusado."});
           return interaction.update({embeds:[e],components:[]});
         }
+      }
+      if (interaction.isButton() && interaction.customId.startsWith("games:")) {
+        return await handleGamesInteraction(interaction, repository);
       }
       if (!interaction.isButton() && !interaction.isUserSelectMenu()) return;
       if (!interaction.customId.startsWith("social:")) return;
