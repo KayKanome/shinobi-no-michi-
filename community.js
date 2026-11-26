@@ -199,7 +199,8 @@ function eventEmbed(event) {
   return new EmbedBuilder().setColor(event.status === "completed" ? 0x8DBB83 : 0xE89BB5)
     .setTitle(event.title)
     .setDescription(event.description + "\n\n**Como participar:** jogue qualquer desafio em `/jogo`. Os pontos das partidas concluídas ajudam a comunidade a cumprir a missão.\n\n**Progresso coletivo:** " + event.progress + "/" + event.goal + " pontos\n**Participantes:** " + event.participants.length + "\n**Prazo:** até " + end)
-    .addFields({ name: "🎁 Recompensa", value: "Participe pelo botão e receba um colecionável exclusivo deste evento." })\n    .setFooter({ text: event.status === "completed" ? "Missão concluída pela aldeia!" : "Evento comunitário • Shinobi no Michi" });
+    .addFields({ name: "🎁 Recompensa", value: "Participe pelo botão e receba um colecionável exclusivo deste evento." })
+    .setFooter({ text: event.status === "completed" ? "Missão concluída pela aldeia!" : "Evento comunitário • Shinobi no Michi" });
 }
 async function publishEvent(client, repository, guildId, channel, event) {
   const ping = ["automatic", "momoka"].includes(event.kind) ? { content: "@everyone", allowedMentions: { parse: ["everyone"] } } : {};
