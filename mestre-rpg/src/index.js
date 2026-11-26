@@ -100,7 +100,6 @@ async function handleCommand(message, args) {
     return message.reply("Ficha criada para **" + result.rows[0].name + "**.\nClã: **" + chosenClan + "**\nEstilo principal: **" + chosenPrimary + "** (+3 nas perícias do estilo)\nEstilo secundário: **" + chosenSecondary + "** (+1 nas perícias do estilo)\nTodos os atributos começam em 1. Use !mestre ficha.");
   }
   if (sub === "ficha") {
-    if (campaign.mode === "private" && !(campaign.player_ids || []).includes(message.author.id)) return;
     const character = await getCharacter(message.guildId, message.author.id);
     if (!character) return message.reply("Você ainda não tem ficha. Use !mestre personagem SeuNome.");
     const attributes = Object.entries(character.attributes).map(([key, value]) => "• " + (ATTRIBUTE_LABELS[key] || key) + ": **" + value + "**");
@@ -142,6 +141,7 @@ client.on("messageCreate", async message => {
     return;
   }
   try {
+    if (campaign.mode === "private" && !(campaign.player_ids || []).includes(message.author.id)) return;
     const character = await getCharacter(message.guildId, message.author.id);
     const playerContext = character
       ? message.author.username + ": personagem " + character.name + "; clã " + character.clan + "; estilo principal " + character.primary_style + "; estilo secundário " + character.secondary_style + "; atributos " + JSON.stringify(character.attributes)
