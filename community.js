@@ -1,7 +1,7 @@
 import { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
 
 const IDLE_MS = 90 * 60 * 1000;
-const AUTO_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const AUTO_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const lastActivity = new Map();
 const lastActivityChannel = new Map();
 let automationStarted = false;
@@ -60,7 +60,7 @@ export const communitySlashCommands = [
       .addIntegerOption(o => o.setName("meta").setDescription("Pontos coletivos necessários").setMinValue(10).setMaxValue(10000).setRequired(true)))
     .addSubcommand(s => s.setName("forcar").setDescription("Faz a Momoka lançar uma missão surpresa agora."))
     .addSubcommand(s => s.setName("parar").setDescription("Encerra a missão comunitária ativa."))
-    .addSubcommand(s => s.setName("ativar").setDescription("Ativa missões surpresa após períodos de silêncio."))
+    .addSubcommand(s => s.setName("ativar").setDescription("Ativa uma missão surpresa semanal quando o chat ficar parado."))
     .addSubcommand(s => s.setName("desativar").setDescription("Desativa o início automático de missões.")),
   new SlashCommandBuilder().setName("evento").setDescription("Cria e controla eventos da aldeia.")
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
@@ -88,7 +88,7 @@ export async function handleCommunityCommand(interaction, client, repository) {
   if (interaction.commandName === "missao" && action === "ativar") {
     state.autoEnabled = true;
     await writeState(repository, guildId, state);
-    await interaction.reply({ content: "Missões surpresa ativadas! Se o chat ficar 90 minutos sem atividade, a Momoka poderá lançar uma missão automática. 🌸", ephemeral: true });
+    await interaction.reply({ content: "Missões surpresa ativadas! Se o chat ficar 90 minutos sem atividade, a Momoka poderá lançar uma missão automática, no máximo uma vez por semana. 🌸", ephemeral: true });
     return true;
   }
   if (interaction.commandName === "missao" && action === "desativar") {
