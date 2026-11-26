@@ -1,5 +1,6 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, SlashCommandBuilder } from "discord.js";
 import { recordCommunityGame } from "./community.js";
+import { recordNewspaperMoment } from "./newspaper.js";
 
 const GAMES = {
   word: { name: "Palavra Shinobi", emoji: "📜" },
@@ -291,6 +292,10 @@ async function end(session, extraDescription = "") {
   }
   result.sort((a, b) => b.points - a.points);
   const lines = result.map((p, i) => (i + 1) + ". **" + p.name + "** — " + p.points + " pts").join("\n");
+  if (session.guildId) await recordNewspaperMoment(session.repository, session.guildId, {
+    category: "Resultado de jogo",
+    text: GAMES[session.kind].name + ": " + (result.length ? result.slice(0, 3).map((p, i) => (i + 1) + "º " + p.name + " (" + p.points + " pts)").join(", ") : "partida sem pontuação") + "."
+  });
   const embed = new EmbedBuilder().setColor(0xE89BB5).setTitle("🏆 Partida concluída!")
     .setDescription(lines + "\n\nResultado salvo no ranking! Medalhas e títulos são registrados no perfil. Ryō não é perdido por errar." + extraDescription);
   await editSession(session, { embeds: [embed], components: [] });
