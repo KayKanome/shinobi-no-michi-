@@ -1,4 +1,33 @@
-import { EmbedBuilder, SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
+imp
+  if (action === "categoria-adicionar") {
+    const category = interaction.options.getChannel("categoria");
+    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
+    if (ignored.includes(category.id)) return interaction.reply({ content: "Essa categoria já está protegida. 🌸", ephemeral: true });
+    state.newspaperIgnoredCategoryIds = [...ignored, category.id];
+    const kept = [];
+    for (const item of state.newspaperEntries || []) if (!(await isNewspaperExcluded(client, state, item.channelId))) kept.push(item);
+    state.newspaperEntries = kept;
+    const pending = pendingEditions.get(interaction.guildId);
+    if (pending) {
+      const next = [];
+      for (const item of pending.entries) if (!(await isNewspaperExcluded(client, state, item.channelId))) next.push(item);
+      pending.entries = next;
+      if (!next.length) { clearTimeout(pending.timer); pendingEditions.delete(interaction.guildId); }
+    }
+    await saveState(repository, interaction.guildId, state);
+    return interaction.reply({ content: "🔒 A categoria **" + category.name + "** e todos os canais dentro dela estão excluídos do Jornal.", ephemeral: true });
+  }
+  if (action === "categoria-remover") {
+    const category = interaction.options.getChannel("categoria");
+    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
+    state.newspaperIgnoredCategoryIds = ignored.filter(id => id !== category.id);
+    await saveState(repository, interaction.guildId, state);
+    return interaction.reply({ content: "A categoria **" + category.name + "** foi removida da lista manual de bloqueio. Categorias identificadas como staff continuam protegidas automaticamente. 🌸", ephemeral: true });
+  }
+  if (action === "categoria-listar") {
+    const ignored = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
+    return interaction.reply({ content: ignored.length ? "🔒 **Categorias ignoradas:**\\n" + ignored.map(id => "<#" + id + ">").join("\\n") : "Nenhuma categoria adicionada manualmente. Categorias com nomes de staff continuam protegidas automaticamente. 🌸", ephemeral: true });
+  }ort { EmbedBuilder, SlashCommandBuilder, PermissionFlagsBits, ChannelType } from "discord.js";
 
 const PINK = 0xE879B5;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -14,6 +43,11 @@ export const newspaperSlashCommands = [
     .addSubcommand(s => s.setName("ignorar-remover").setDescription("Permite que o jornal volte a registrar este canal.")
       .addChannelOption(o => o.setName("canal").setDescription("Canal que deixará de ser ignorado.").addChannelTypes(ChannelType.GuildText).setRequired(true)))
     .addSubcommand(s => s.setName("ignorar-listar").setDescription("Mostra os canais ignorados pelo jornal."))
+    .addSubcommand(s => s.setName("categoria-adicionar").setDescription("Ignora uma categoria inteira.")
+      .addChannelOption(o => o.setName("categoria").setDescription("Categoria a proteger.").addChannelTypes(ChannelType.GuildCategory).setRequired(true)))
+    .addSubcommand(s => s.setName("categoria-remover").setDescription("Remove uma categoria da lista de ignoradas.")
+      .addChannelOption(o => o.setName("categoria").setDescription("Categoria a liberar.").addChannelTypes(ChannelType.GuildCategory).setRequired(true)))
+    .addSubcommand(s => s.setName("categoria-listar").setDescription("Mostra as categorias ignoradas pelo Jornal."))
 ];
 
 async function getState(repository, guildId) {
@@ -62,7 +96,19 @@ function articleHeadline(item) {
   return "Acontecimento movimenta Konohagakure";
 }
 
-async function publishEdition(client, repository, guildId, label, entries, weekly = false) {
+
+async function isNewspaperExcluded(client, state, channelId) {
+  if (!channelId) return false;
+  const ignoredChannels = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
+  if (ignoredChannels.includes(channelId)) return true;
+  const channel = client.channels.cache.get(channelId) || await client.channels.fetch(channelId).catch(() => null);
+  const parentId = channel?.parentId || null;
+  const ignoredCategories = Array.isArray(state.newspaperIgnoredCategoryIds) ? state.newspaperIgnoredCategoryIds : [];
+  if (parentId && ignoredCategories.includes(parentId)) return true;
+  const categoryName = String(channel?.parent?.name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase();
+  return /staff|equipe|modera|administra|diretoria|reuniao/.test(categoryName);
+}
+\nasync function publishEdition(client, repository, guildId, label, entries, weekly = false) {
   const state = await getState(repository, guildId);
   const channelId = state.newspaperChannelId;
   const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
@@ -71,13 +117,14 @@ async function publishEdition(client, repository, guildId, label, entries, weekl
     return false;
   }
 
-  const ignoredChannels = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
-  const stories = entries.filter(item => !item.channelId || !ignoredChannels.includes(item.channelId)).slice(-6);
+  const stories = [];
+  for (const item of entries) if (!(await isNewspaperExcluded(client, state, item.channelId))) stories.push(item);
+  const visibleStories = stories.slice(-6);
   const headline = stories.length === 1
     ? articleHeadline(stories[0])
     : weekly ? "Os acontecimentos que marcaram a semana"
       : "As últimas notícias da nossa vila";
-  const edition = newspaperEmbed(label, headline, stories, weekly);
+  const edition = newspaperEmbed(label, headline, visibleStories, weekly);
   await channel.send({
     content: "@everyone",
     embeds: [edition],
@@ -94,8 +141,7 @@ async function publishEdition(client, repository, guildId, label, entries, weekl
 export async function recordNewspaperMoment(repository, guildId, moment) {
   if (!guildId || !moment?.text) return;
   const state = await getState(repository, guildId);
-  const ignoredChannels = Array.isArray(state.newspaperIgnoredChannelIds) ? state.newspaperIgnoredChannelIds : [];
-  if (moment.channelId && ignoredChannels.includes(moment.channelId)) return;
+  if (newspaperClient && await isNewspaperExcluded(newspaperClient, state, moment.channelId)) return;
   const entries = Array.isArray(state.newspaperEntries) ? state.newspaperEntries : [];
   const entry = { at: Date.now(), channelId: moment.channelId || null, category: moment.category || "Momento da vila", text: String(moment.text).slice(0, 450) };
   entries.push(entry);
