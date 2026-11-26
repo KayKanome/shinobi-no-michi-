@@ -75,6 +75,7 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   <path d="M800 285 V${H-115}" stroke="#9D8056" stroke-width="8" fill="none" stroke-linecap="round" opacity=".75"/>
   `;
   let coupleConnection = null;
+  let childAnchorCenter = W/2;
   for(const layout of layouts){
     const {group:g,y,index}=layout;
     svg+=`<text x="95" y="${y-35}" font-family="Arial,sans-serif" font-size="21" font-weight="bold" letter-spacing="3" fill="${g.color}">${g.label}</text>`;
@@ -90,12 +91,13 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
       if(spousePlacement){
         const rootPlacement=placements.find(p=>p.item.root);
         if((family.children||[]).length){
+          childAnchorCenter=(rootPlacement.x+spousePlacement.x+cardW)/2;
           coupleConnection={
             rootX:rootPlacement.x+cardW/2,
             spouseX:spousePlacement.x+cardW/2,
             unionY:y+cardH+28,
             childLineY:(layouts[3]?.y||y+cardH+100)-26,
-            childCenter:W/2,
+            childCenter:childAnchorCenter,
             childCardY:layouts[3]?.y||y+cardH+100
           };
         }
@@ -108,7 +110,9 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
           svg+=`<text x="800" y="${rowY+105}" text-anchor="middle" font-family="Georgia,serif" font-size="25" font-style="italic" fill="#9A8059">Este ramo ainda aguarda novos laços</text>`;
           return;
         }
-        const total=items.length*cardW+(items.length-1)*gap,start=(W-total)/2;
+        const total=items.length*cardW+(items.length-1)*gap;
+        const rowCenter=index===3?childAnchorCenter:W/2;
+        const start=rowCenter-total/2;
         drawPlacements(items.map((item,j)=>({item,x:start+j*(cardW+gap)})),rowY,g.color);
       });
     }
@@ -123,7 +127,7 @@ export async function renderFamilyTree({player,family,ownerId,client}) {
   if(coupleConnection){
     const {rootX,spouseX,unionY,childLineY,childCenter,childCardY}=coupleConnection;
     const center=(rootX+spouseX)/2;
-    svg+=`<path d="M ${rootX} ${unionY-10} V ${unionY} H ${spouseX} V ${unionY-10} M ${center} ${unionY} V ${childLineY} H ${childCenter} V ${childCardY-4}" stroke="#9D8056" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="${center}" cy="${unionY}" r="10" fill="#B48A4F"/><circle cx="${childCenter}" cy="${childLineY}" r="8" fill="#B48A4F"/>`;
+    svg+=`<path d="M ${rootX} ${unionY-10} V ${unionY} H ${spouseX} V ${unionY-10} M ${center} ${unionY} V ${childLineY} V ${childCardY-4}" stroke="#9D8056" stroke-width="7" fill="none" stroke-linecap="round"/><circle cx="${center}" cy="${unionY}" r="10" fill="#B48A4F"/><circle cx="${center}" cy="${childLineY}" r="8" fill="#B48A4F"/>`;
   }
   svg+=`<g fill="#8A6A3F" opacity=".8"><path d="M150 ${H-115} q35 -42 70 0 q-35 -12 -70 0 M1380 ${H-115} q35 -42 70 0 q-35 -12 -70 0"/></g>
   <text x="800" y="${H-90}" text-anchor="middle" font-family="Georgia,serif" font-size="22" fill="#765B37">Cada vínculo é uma escolha. Cada geração, um novo capítulo.</text>
