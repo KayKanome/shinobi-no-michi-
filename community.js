@@ -199,7 +199,8 @@ function eventEmbed(event) {
     .setFooter({ text: event.status === "completed" ? "Missão concluída pela aldeia!" : "Missão comunitária • Shinobi no Michi" });
 }
 async function publishEvent(client, repository, guildId, channel, event) {
-  const message = await channel.send({ embeds: [eventEmbed(event)] });
+  const ping = ["automatic", "momoka"].includes(event.kind) ? { content: "@everyone", allowedMentions: { parse: ["everyone"] } } : {};
+  const message = await channel.send({ ...ping, embeds: [eventEmbed(event)] });
   event.messageId = message.id;
   const state = await readState(repository, guildId);
   state.active = event;
@@ -339,7 +340,7 @@ export async function recordCommunityGame(client, repository, guildId, playerId,
   if (!guildId) return;
   const state = await readState(repository, guildId);
   const event = state.active;
-  if (!event || event.status !== "active") return;
+  if (!event || event.status !== "active" || event.kind === "automatic-game") return;
   if (Date.now() > event.endsAt) { event.status = "expired"; await writeState(repository, guildId, state); return; }
   event.progress += Math.max(0, Number(points) || 0);
   if (!event.participants.includes(playerId)) event.participants.push(playerId);
@@ -382,6 +383,79 @@ export function updateCommunityPresence(oldPresence, newPresence) {
   else offlineSince.delete(guildId);
 }
 
+
+const AUTOMATIC_QUIZ = [
+  { prompt: "Qual é a vila de Naruto?", options: ["Suna", "Konoha", "Kiri", "Iwa"], answer: 1 },
+  { prompt: "Quem é conhecido como Ninja Copiador?", options: ["Kakashi", "Jiraiya", "Iruka", "Neji"], answer: 0 },
+  { prompt: "Qual clã é conhecido pelo Byakugan?", options: ["Nara", "Akimichi", "Hyuga", "Aburame"], answer: 2 },
+  { prompt: "Quem ensinou o Rasengan a Naruto?", options: ["Kakashi", "Jiraiya", "Minato", "Iruka"], answer: 1 },
+  { prompt: "Qual é o nome da raposa selada em Naruto?", options: ["Shukaku", "Matatabi", "Kurama", "Gyuki"], answer: 2 },
+  { prompt: "Quem foi o Segundo Hokage?", options: ["Hashirama", "Tobirama", "Hiruzen", "Minato"], answer: 1 }
+];
+const automaticGameRooms = new Map();
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function startAutomaticGame(client, repository, guildId, channel, state) {
+  const chosen = [...AUTOMATIC_QUIZ].sort(() => Math.random() - 0.5).slice(0, 3);
+  const starter = await channel.send({
+    content: "@everyone 🌸 **A Momoka abriu uma sala de jogo surpresa!** Entrem na conversa: vou jogar com vocês em um mini Quiz Shinobi de 3 rodadas!",
+    allowedMentions: { parse: ["everyone"] }
+  });
+  const thread = await starter.startThread({
+    name: "🎮 Sala surpresa • Quiz Shinobi",
+    autoArchiveDuration: 60,
+    reason: "Atividade automática da Momoka"
+  });
+  automaticGameRooms.set(guildId, thread.id);
+  state.active = {
+    id: "auto-game-" + Date.now().toString(36),
+    kind: "automatic-game",
+    status: "active",
+    channelId: thread.id,
+    endsAt: Date.now() + 3 * 60 * 1000
+  };
+  state.lastAutoAt = Date.now();
+  await writeState(repository, guildId, state);
+
+  const totals = new Map();
+  await thread.send("📜 **Regras:** responda com o número da alternativa (1 a 4) ou com o texto dela. Cada pessoa conta uma vez por rodada. Eu também vou dar meus palpites! Temos 20 segundos por pergunta.");
+  for (let index = 0; index < chosen.length; index++) {
+    const item = chosen[index];
+    const letters = item.options.map((option, i) => "**" + (i + 1) + ".** " + option).join("\n");
+    await thread.send("**Rodada " + (index + 1) + "/3**\n" + item.prompt + "\n\n" + letters);
+    const answers = new Map();
+    const collector = thread.createMessageCollector({
+      filter: message => !message.author.bot && !answers.has(message.author.id),
+      time: 20000
+    });
+    collector.on("collect", message => {
+      const value = message.content.trim().toLocaleLowerCase("pt-BR");
+      const choice = item.options.findIndex(option => option.toLocaleLowerCase("pt-BR") === value);
+      const numeric = /^[1-4]$/.test(value) ? Number(value) - 1 : choice;
+      if (numeric >= 0 && numeric < 4) {
+        answers.set(message.author.id, numeric === item.answer);
+        if (numeric === item.answer) totals.set(message.author.id, (totals.get(message.author.id) || 0) + 1);
+      }
+    });
+    await wait(4500);
+    await thread.send("🌸 Meu palpite: **" + item.options[item.answer] + "**! Será que vocês também acertaram?");
+    await new Promise(resolve => collector.once("end", resolve));
+    const winners = [...answers].filter(([, correct]) => correct).length;
+    await thread.send("🔎 Resposta: **" + item.options[item.answer] + "**. " + winners + " participante(s) acertaram esta rodada!");
+  }
+  const ranking = [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const result = ranking.length
+    ? ranking.map(([id, points], i) => (i + 1) + ". <@" + id + "> — " + points + "/3").join("\n")
+    : "Ninguém enviou respostas desta vez, mas valeu pela brincadeira!";
+  await thread.send("🏆 **Fim da partida!**\n" + result + "\n\nGostei de jogar com vocês! Qual pergunta foi a mais difícil? 🌸");
+  automaticGameRooms.delete(guildId);
+  const latest = await readState(repository, guildId);
+  if (latest.active?.kind === "automatic-game") {
+    latest.active.status = "completed";
+    await writeState(repository, guildId, latest);
+  }
+}
+
 export function startCommunityAutomation(client, repository) {
   if (automationStarted) return;
   automationStarted = true;
@@ -397,17 +471,24 @@ export function startCommunityAutomation(client, repository) {
         if (!state.autoEnabled || state.active?.status === "active") continue;
         const offlineAt = offlineSince.get(guildId);
         if (!offlineAt || Date.now() - offlineAt < OFFLINE_GRACE_MS) continue;
+        const idleAt = lastActivity.get(guildId) || offlineAt;
+        if (Date.now() - idleAt < IDLE_MS) continue;
         if (Date.now() - Number(state.lastAutoAt || 0) < AUTO_COOLDOWN_MS) continue;
-        const channelId = state.eventChannelId || lastActivityChannel.get(guildId);
+        const configuredChatId = await repository.getMomokaChatChannel(guildId).catch(() => null);
+        const channelId = configuredChatId || state.eventChannelId || lastActivityChannel.get(guildId);
         const channel = channelId ? await client.channels.fetch(channelId).catch(() => null) : null;
-        if (!channel?.isTextBased?.()) continue;
-        const event = await createEvent(client, repository, guildId, channel, {
-          ...chooseSurprise(state), kind: "automatic"
-        });
-        const refreshed = await readState(repository, guildId);
-        refreshed.lastAutoAt = Date.now();
-        refreshed.recentScenarioIds = state.recentScenarioIds;
-        await writeState(repository, guildId, refreshed);
+        if (!channel?.isTextBased?.() || !channel.threads?.create) continue;
+        if (Math.random() < 0.5) {
+          await startAutomaticGame(client, repository, guildId, channel, state);
+        } else {
+          await createEvent(client, repository, guildId, channel, {
+            ...chooseSurprise(state), kind: "automatic"
+          });
+          const refreshed = await readState(repository, guildId);
+          refreshed.lastAutoAt = Date.now();
+          refreshed.recentScenarioIds = state.recentScenarioIds;
+          await writeState(repository, guildId, refreshed);
+        }
       }
     } catch (error) {
       console.error("Falha na verificação de missões automáticas:", error.message);
