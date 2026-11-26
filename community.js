@@ -277,18 +277,18 @@ export async function handleCommunityCommand(interaction, client, repository) {
     const inventory = state.eventInventories?.[interaction.user.id] || [];
     if (action === "inventario") {
       const summary = inventory.length ? inventory.map(item => "• " + item.emoji + " **" + item.name + "** — " + item.eventTitle).join("\n") : "Você ainda não possui colecionáveis. Participe de um evento para ganhar o primeiro! 🌸";
-      return interaction.reply({ content: "🎒 **Inventário de " + interaction.user.username + "**\\n" + summary, ephemeral: true });
+      return interaction.reply({ content: "🎒 **Inventário de " + interaction.user.username + "**\n" + summary, ephemeral: true });
     }
     if (action === "estatisticas") {
       const count = Number(state.eventStats?.[interaction.user.id]?.joined || 0);
       const earned = inventory.length;
-      return interaction.reply({ content: "📊 **Suas estatísticas**\\nEventos participados: **" + count + "**\\nColecionáveis conquistados: **" + earned + "**", ephemeral: true });
+      return interaction.reply({ content: "📊 **Suas estatísticas**\nEventos participados: **" + count + "**\nColecionáveis conquistados: **" + earned + "**", ephemeral: true });
     }
     const event = state.active;
     if (!event) return interaction.reply({ content: "Ainda não há um evento registrado para consultar o ranking. 🌸", ephemeral: true });
     const rows = Object.entries(event.pointsByUser || {}).sort((a,b) => b[1]-a[1]).slice(0,10);
     const ranking = rows.length ? rows.map(([id,points],i) => (i+1)+". <@"+id+"> — **"+points+" pts**").join("\n") : "O ranking ainda está vazio. Jogue para marcar os primeiros pontos!";
-    return interaction.reply({ content: "🏆 **Ranking — " + event.title + "**\\n" + ranking, ephemeral: true });
+    return interaction.reply({ content: "🏆 **Ranking — " + event.title + "**\n" + ranking, ephemeral: true });
   }
   if (!isStaff(interaction)) {
     await interaction.reply({ content: "Este comando é exclusivo da staff com permissão de gerenciar o servidor. 🌸", ephemeral: true });
