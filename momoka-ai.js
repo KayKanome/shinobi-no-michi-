@@ -158,10 +158,83 @@ async function requestReply(messages) {
   return String(data.choices?.[0]?.message?.content ?? "").trim();
 }
 
+const spontaneousChecks = new Set();
+let spontaneousTimerStarted = false;
+
+async function checkSpontaneousConversation(client, repository) {
+  if (!OPENROUTER_API_KEY) return;
+  for (const guild of client.guilds.cache.values()) {
+    if (spontaneousChecks.has(guild.id)) continue;
+    spontaneousChecks.add(guild.id);
+    try {
+      const onlineCount = guild.presences.cache.filter(p => p.status !== "offline" && p.user?.bot !== true).length;
+      if (onlineCount < 2) continue;
+
+      const channelId = await repository.getMomokaChatChannel(guild.id).catch(() => null);
+      if (!channelId) continue;
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (!channel?.isTextBased?.() || !channel.messages?.fetch) continue;
+
+      const state = await repository.getCommunityState(guild.id).catch(() => null) || {};
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+      const sentToday = state.momokaSocialDay === today ? Number(state.momokaSocialToday || 0) : 0;
+      if (sentToday >= 2 || Date.now() - Number(state.momokaSocialLastAt || 0) < 3 * 60 * 60 * 1000) continue;
+
+      const recent = await channel.messages.fetch({ limit: 15 }).catch(() => null);
+      if (!recent?.size) continue;
+      const latestHuman = [...recent.values()]
+        .filter(item => !item.author.bot && !item.webhookId && item.content?.trim())
+        .sort((a, b) => b.createdTimestamp - a.createdTimestamp)[0];
+      if (!latestHuman || Date.now() - latestHuman.createdTimestamp < 30 * 60 * 1000) continue;
+      if (activeChannels.has(channel.id)) continue;
+
+      activeChannels.add(channel.id);
+      try {
+        const [context, memories] = await Promise.all([
+          getConversationContext(latestHuman, repository, client),
+          repository.getMomokaMemories(guild.id, latestHuman.author.id).catch(() => [])
+        ]);
+        const sharedMemories = memories.filter(item => item.scope === "shared").map(item => item.text).join("\\n");
+        const messages = [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: `Você está avaliando se vale a pena iniciar espontaneamente uma conversa no canal principal. Há pelo menos duas pessoas online, mas ninguém escreveu há 30 minutos. Use o histórico recente e apenas estas memórias compartilhadas confirmadas: ${sharedMemories || "nenhuma"}. Se tiver uma contribuição realmente natural, envie UMA mensagem curta, contextual, leve e sem marcar ninguém. Pode comentar um assunto anterior, trazer uma curiosidade ou propor uma conversa simples. Não diga que está monitorando o chat, não reclame do silêncio, não peça que falem com você, não anuncie missão ou jogo e não repita um tema já usado recentemente. Se não houver algo que soe natural, responda exatamente [[SILENT]]. Responda apenas com o texto da mensagem ou [[SILENT]], sem JSON.` },
+          ...context.transcript.slice(-8),
+          { role: "user", content: "Decida se há algo natural a acrescentar agora. Se não houver, fique em silêncio." }
+        ];
+        const raw = await requestReply(messages);
+        const reply = raw.replace(/^\s*["']|["']\s*$/g, "").replace(/\r\n/g, "\n").replace(/\n{2,}/g, "\n").trim();
+        if (!reply || reply === "[[SILENT]]" || reply.length < 3) continue;
+        await channel.send({ content: reply.slice(0, 900), allowedMentions: { parse: [] } });
+        const nextState = await repository.getCommunityState(guild.id).catch(() => null) || {};
+        nextState.momokaSocialDay = today;
+        nextState.momokaSocialToday = sentToday + 1;
+        nextState.momokaSocialLastAt = Date.now();
+        await repository.setCommunityState(guild.id, nextState);
+      } finally {
+        activeChannels.delete(channel.id);
+      }
+    } catch (error) {
+      console.error("Momoka: falha na participação espontânea:", error.message);
+    } finally {
+      spontaneousChecks.delete(guild.id);
+    }
+  }
+}
+
+function startSpontaneousConversationChecks(client, repository) {
+  if (spontaneousTimerStarted) return;
+  spontaneousTimerStarted = true;
+  setInterval(() => {
+    void checkSpontaneousConversation(client, repository);
+  }, 5 * 60 * 1000);
+}
+
 export function setupMomokaChat(client, repository) {
   if (!OPENROUTER_API_KEY) {
     console.warn("Momoka IA: configure OPENROUTER_API_KEY no ambiente do serviço para ativar as conversas.");
   }
+
+  client.once("ready", () => startSpontaneousConversationChecks(client, repository));
 
   client.on("messageCreate", async message => {
     if (!OPENROUTER_API_KEY) return;
