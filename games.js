@@ -334,7 +334,7 @@ export async function handleGamesInteraction(interaction, repository) {
     if (action === "cancel") { rooms.delete(room.code); await interaction.update({ content: "Sala cancelada.", embeds: [], components: [] }); return true; }
     if (room.players.size < 2) { await interaction.reply({ content: "São necessários pelo menos 2 participantes.", ephemeral: true }); return true; }
     const session = { id: room.code, roomCode: room.code, kind: room.kind, mode: "multi", hostId: room.hostId, players: room.players, score: new Map([...room.players.keys()].map(x => [x, 0])), correct: new Map([...room.players.keys()].map(x => [x, 0])), answers: new Map(), repository: room.repository, message: room.message, round: 1, status: "playing" };
-    sessions.set(session.id, session); session.question = question(session.kind, 1, Date.now() % 100000);
+    session.questionUsed = new Set(); sessions.set(session.id, session); session.question = question(session.kind, 1, Date.now() % 100000, session.questionUsed);
     await interaction.deferUpdate(); await render(session); return true;
   }
   if (action === "answer") {
