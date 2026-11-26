@@ -204,7 +204,7 @@ export function setupMomokaChat(client, repository) {
       const result = parseMomokaResponse(await requestReply(messages));
       for (const candidate of result.memories) {
         const scope = candidate?.scope === "shared" ? "shared" : candidate?.scope === "user" ? "user" : null;
-        const text = String(candidate?.text ?? "").replace(/\\s+/g, " ").trim().slice(0, 180);
+        const text = String(candidate?.text ?? "").replace(/\s+/g, " ").trim().slice(0, 180);
         if (!scope || text.length < 8 || /senha|password|token|telefone|endereço|cpf|cartão|diagnóstico|remédio|doença|localização|segredo/i.test(text)) continue;
         await repository.addMomokaMemory(message.guild.id, {
           scope,
