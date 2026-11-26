@@ -295,9 +295,7 @@ function rpCharacterPanel(ownerId, character) {
   const embed = new EmbedBuilder().setColor(0xD98BB8).setTitle(`🎭 ${character.name}`).setDescription(character.description || "Sem descrição cadastrada.").addFields({ name: "Apresentação", value: character.introduction || "Nenhuma apresentação cadastrada." }).setFooter({ text: "Personagem selecionado • Painel privado" });
   if (character.imageUrl) embed.setThumbnail(character.imageUrl);
   const compose = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`rp:compose:fala:${character.id}:${ownerId}`).setLabel("Falar").setEmoji("💬").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`rp:compose:acao:${character.id}:${ownerId}`).setLabel("Ação").setEmoji("🎬").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`rp:compose:pensamento:${character.id}:${ownerId}`).setLabel("Pensamento").setEmoji("💭").setStyle(ButtonStyle.Secondary));
+    new ButtonBuilder().setCustomId(`rp:compose:${character.id}:${ownerId}`).setLabel("Interpretar").setEmoji("🎭").setStyle(ButtonStyle.Primary));
   const manage = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`rp:edit:${character.id}:${ownerId}`).setLabel("Editar").setEmoji("✏️").setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`rp:delete:${character.id}:${ownerId}`).setLabel("Excluir").setEmoji("🗑️").setStyle(ButtonStyle.Danger),
@@ -316,22 +314,21 @@ function rpCharacterModal(ownerId, character = null) {
   return modal;
 }
 
-function rpComposeModal(ownerId, character, kind) {
-  const labels = { fala: "Escreva a fala", acao: "Descreva a ação", pensamento: "Escreva o pensamento" };
-  const modal = new ModalBuilder().setCustomId(`rp:publish:${kind}:${character.id}:${ownerId}`).setTitle(`${labels[kind]} • ${character.name}`);
-  const input = new TextInputBuilder().setCustomId("text").setLabel(labels[kind]).setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1900).setPlaceholder("Digite sua interpretação...");
+function rpComposeModal(ownerId, character) {
+  const modal = new ModalBuilder().setCustomId(`rp:publish:${character.id}:${ownerId}`).setTitle(`Interpretar • ${character.name}`);
+  const input = new TextInputBuilder().setCustomId("text").setLabel("Sua interpretação").setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(1800).setPlaceholder('*Ação em itálico* • "Fala do personagem" • 💭 *Pensamento*');
   modal.addComponents(new ActionRowBuilder().addComponents(input));
   return modal;
 }
 
-async function publishAsRpCharacter(channel, client, character, kind, text) {
+async function publishAsRpCharacter(channel, client, character, ownerId, text) {
   if (!channel?.isTextBased?.() || !channel.guild) throw new Error("Este canal não permite publicação de RP.");
   if (!channel.permissionsFor(client.user)?.has(PermissionFlagsBits.ManageWebhooks)) throw new Error("A Momoka precisa da permissão Gerenciar Webhooks neste canal para publicar com o nome e avatar do personagem.");
   const hooks = await channel.fetchWebhooks();
   let webhook = hooks.find(item => item.owner?.id === client.user.id && item.name === "Momoka RP");
   if (!webhook) webhook = await channel.createWebhook({ name: "Momoka RP", reason: "Publicação de personagens do sistema de RP" });
-  const formatted = kind === "acao" ? `*${text}*` : kind === "pensamento" ? `> *💭 ${text}*` : text;
-  await webhook.send({ username: character.name, avatarURL: character.imageUrl || client.user.displayAvatarURL({ extension: "png", size: 256 }), content: formatted, allowedMentions: { parse: [] } });
+  const content = `<@${ownerId}>\n\n${text}`;
+  await webhook.send({ username: character.name, avatarURL: character.imageUrl || client.user.displayAvatarURL({ extension: "png", size: 256 }), content, allowedMentions: { parse: [] } });
 }
 
 export async function setupSocialInteractions(client, repository) {
@@ -426,9 +423,9 @@ export async function setupSocialInteractions(client, repository) {
           return interaction.update({ content: deleted ? "Personagem excluído. 🌸" : "Não encontrei esse personagem.", ...rpHomePanel(ownerId, await repository.getRpCharacters(ownerId)) });
         }
         if (interaction.isButton() && parts[1] === "compose") {
-          const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === parts[3]);
+          const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === parts[2]);
           if (!character) return interaction.reply({ content: "Esse personagem não foi encontrado.", ephemeral: true });
-          return interaction.showModal(rpComposeModal(ownerId, character, parts[2]));
+          return interaction.showModal(rpComposeModal(ownerId, character));
         }
         if (interaction.isModalSubmit() && (parts[1] === "savecreate" || parts[1] === "saveedit")) {
           const editing = parts[1] === "saveedit";
@@ -443,13 +440,13 @@ export async function setupSocialInteractions(client, repository) {
           return interaction.reply({ ...rpCharacterPanel(ownerId, character), ephemeral: true });
         }
         if (interaction.isModalSubmit() && parts[1] === "publish") {
-          const kind = parts[2], characterId = parts[3];
+          const characterId = parts[2];
           const character = (await repository.getRpCharacters(ownerId)).find(item => item.id === characterId);
           if (!character) return interaction.reply({ content: "Esse personagem não foi encontrado.", ephemeral: true });
           const message = interaction.fields.getTextInputValue("text").trim();
           if (!message) return interaction.reply({ content: "Escreva algo antes de publicar.", ephemeral: true });
           await interaction.deferReply({ ephemeral: true });
-          try { await publishAsRpCharacter(interaction.channel, client, character, kind, message); return interaction.editReply({ content: `Sua ${kind} foi publicada como **${character.name}**! 🌸` }); }
+          try { await publishAsRpCharacter(interaction.channel, client, character, ownerId, message); return interaction.editReply({ content: `Sua interpretação foi publicada como **${character.name}**, com sua identificação! 🌸` }); }
           catch (error) { return interaction.editReply({ content: error.message || "Não consegui publicar a interpretação. Verifique as permissões do canal." }); }
         }
       }
