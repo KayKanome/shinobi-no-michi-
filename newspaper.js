@@ -23,7 +23,7 @@ function newspaperEmbed(label, headline, entries, weekly = false) {
     .setColor(0xB85C87)
     .setAuthor({ name: "📰  O CORREIO DE KONOHAGAKURE  •  IMPRENSA DA VILA" })
     .setTitle(headline)
-    .setDescription("**" + edition + "  |  " + label.toLocaleUpperCase("pt-BR") + "**\\n\\n" +
+    .setDescription("**" + edition + "  |  " + label.toLocaleUpperCase("pt-BR") + "**\n\n" +
       (weekly
         ? "Boa noite, Konohagakure! 🌙 A semana foi cheia de acontecimentos, encontros e histórias. Nossa redação reuniu os fatos que merecem ficar na memória da vila."
         : "Atenção, moradores! 📯 Aconteceu, a Momoka ficou sabendo — e a notícia chegou à redação! Confira o que está movimentando a nossa vila."))
@@ -149,5 +149,7 @@ export function startNewspaperWeekly(client, repository) {
       }
     }
   };
-  client.once("ready", () => { newspaperClient = client; run(); setInterval(run, 60 * 60 * 1000); });
+  newspaperClient = client;
+  run();
+  setInterval(run, 60 * 60 * 1000);
 }
