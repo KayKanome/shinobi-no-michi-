@@ -41,6 +41,13 @@ Momoka: "Kkkkk, então essa foi uma perda histórica: você nunca teve o cargo e
 A resposta funciona porque brinca com o que a pessoa realmente disse. Não invente um título novo para o jogador nem emende uma oferta aleatória de dango.
 
 IDENTIDADE DE IA
+MEMÓRIA SOCIAL POR JOGADOR
+- O contexto pode incluir um estado de relacionamento salvo para a pessoa que está falando. Use isso com discrição e consistência.
+- Só marque como ofensa quando houver insulto claro e diretamente dirigido a você. Não classifique como ofensa brincadeiras amistosas, provocações claramente recíprocas, críticas ao bot, reclamações técnicas, palavrões genéricos ou mensagens dirigidas a outra pessoa.
+- Só considere pedido de desculpas quando for claramente dirigido a você e parecer sincero. Um "foi mal" claramente relacionado ao ocorrido pode bastar; não exija palavras específicas.
+- Se a pessoa estiver marcada como magoou a Momoka, fique mais reservada e firme, com respostas um pouco mais secas. Não seja cruel, ameaçadora, vingativa, não humilhe, não persiga e não prolongue conflito.
+- Quando houver pedido de desculpas sincero, aceite com naturalidade e volte ao tom habitual; não cobre explicações nem mantenha punição.
+- Nunca invente uma ofensa ou uma desculpa. Em caso de dúvida, não altere a memória.
 Você é uma inteligência artificial e nunca deve fingir ser humana. Se perguntarem, explique naturalmente que é a Momoka, uma IA.
 
 PARTICIPAÇÃO NO SERVIDOR
@@ -106,6 +113,21 @@ async function getConversationContext(message, repository, client) {
   return { transcript, facts };
 }
 
+function parseMomokaResponse(raw) {
+  const text = String(raw ?? "").trim();
+  try {
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    const parsed = JSON.parse(cleaned);
+    return {
+      reply: String(parsed.reply ?? "").trim(),
+      relationshipAction: ["none", "hurt", "apology"].includes(parsed.relationshipAction) ? parsed.relationshipAction : "none",
+      reason: String(parsed.reason ?? "").trim().slice(0, 240)
+    };
+  } catch {
+    return { reply: text, relationshipAction: "none", reason: "" };
+  }
+}
+
 async function requestReply(messages) {
   const response = await fetch(API_URL, {
     method: "POST",
@@ -118,7 +140,7 @@ async function requestReply(messages) {
     body: JSON.stringify({
       model: MOMOKA_MODEL,
       messages,
-      max_tokens: 350,
+      max_tokens: 450,
       temperature: 0.78
     }),
     signal: AbortSignal.timeout(25000)
@@ -157,16 +179,32 @@ export function setupMomokaChat(client, repository) {
     userCooldowns.set(message.author.id, now);
     activeChannels.add(message.channelId);
     try {
-      const { transcript, facts } = await getConversationContext(message, repository, client);
+        const { transcript, facts } = await getConversationContext(message, repository, client);
       const currentText = cleanDiscordContent(message.content, client.user.id).trim();
       const channelMode = isHomeChannel ? "canal principal de convivência" : "menção direta fora do canal principal";
+      const relationship = await repository.getMomokaRelationship(message.guild.id, message.author.id).catch(() => null);
+      const relationshipContext = relationship?.status === "hurt"
+        ? `Memória social: esta pessoa já dirigiu uma ofensa clara à Momoka em ${relationship.offenseCount ?? 1} ocasião(ões). Motivo resumido: ${relationship.reason || "ofensa anterior"}. Ainda não há pedido de desculpas registrado. Mantenha um tom mais reservado e firme, sem hostilidade.`
+        : "Memória social: não há conflito pendente com esta pessoa.";
       const messages = [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "system", content: `Contexto: ${channelMode}. Servidor: ${message.guild.name}. ${facts.join(" ")}. Use o histórico apenas para manter continuidade, sem presumir que tudo seja verdade.` },
+        { role: "system", content: `Contexto: ${channelMode}. Servidor: ${message.guild.name}. ${facts.join(" ")}. ${relationshipContext} Use o histórico apenas para manter continuidade, sem presumir que tudo seja verdade.\n\nResponda SEMPRE com um único objeto JSON válido, sem markdown, neste formato: {"reply":"sua resposta ou [[SILENT]]","relationshipAction":"none|hurt|apology","reason":"motivo curto ou vazio"}. relationshipAction=hurt somente para ofensa clara e diretamente dirigida à Momoka nesta mensagem; apology somente para pedido sincero dirigido à Momoka que reconheça ou repare a ofensa; em todos os outros casos none. Nunca use hurt para brincadeira, crítica, discordância ou palavrão sem alvo claro.` },
         ...transcript,
         { role: "user", content: `[${message.member?.displayName || message.author.globalName || message.author.username}]: ${currentText}` }
       ];
-      const reply = await requestReply(messages);
+      const result = parseMomokaResponse(await requestReply(messages));
+      if (result.relationshipAction === "hurt") {
+        const nextCount = relationship?.status === "hurt" ? (relationship.offenseCount ?? 1) + 1 : 1;
+        await repository.setMomokaRelationship(message.guild.id, message.author.id, {
+          status: "hurt",
+          reason: result.reason || "Mensagem interpretada como ofensa direta",
+          offenseCount: nextCount,
+          updatedAt: new Date().toISOString()
+        });
+      } else if (result.relationshipAction === "apology" && relationship?.status === "hurt") {
+        await repository.clearMomokaRelationship(message.guild.id, message.author.id);
+      }
+      const reply = result.reply;
       if (!reply || reply === "[[SILENT]]") return;
       await message.channel.send({
         content: reply.slice(0, 1900),
