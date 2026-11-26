@@ -228,9 +228,10 @@ async function readDatabase() {
     if (!database.rpCharacters || typeof database.rpCharacters !== "object") database.rpCharacters = {};
     if (!database.rpActiveCharacters || typeof database.rpActiveCharacters !== "object") database.rpActiveCharacters = {};
     if (!database.momokaChannels || typeof database.momokaChannels !== "object") database.momokaChannels = {};
+    if (!database.muralChannels || typeof database.muralChannels !== "object") database.muralChannels = {};
     return database;
   } catch (error) {
-    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {} };
+    if (error.code === "ENOENT") return { players: {}, processedMessageIds: [], rpCharacters: {}, rpActiveCharacters: {}, momokaChannels: {}, muralChannels: {} };
     throw error;
   }
 }
@@ -276,6 +277,19 @@ const localStore = {
     return serializeWrite(async () => {
       const database = await readDatabase();
       database.momokaChannels[guildId] = channelId;
+      await writeDatabase(database);
+      return channelId;
+    });
+  },
+  async getMuralChannel(guildId) {
+    await writeQueue;
+    const database = await readDatabase();
+    return database.muralChannels[guildId] ?? null;
+  },
+  async setMuralChannel(guildId, channelId) {
+    return serializeWrite(async () => {
+      const database = await readDatabase();
+      database.muralChannels[guildId] = channelId;
       await writeDatabase(database);
       return channelId;
     });
@@ -369,6 +383,7 @@ function createPostgresStore() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           )
         `);
+        await pool.query(`ALTER TABLE shinobi_momoka_settings ADD COLUMN IF NOT EXISTS mural_channel_id TEXT`);
         await pool.query(`
           CREATE TABLE IF NOT EXISTS shinobi_rp_characters (
             id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL,
@@ -479,6 +494,16 @@ function createPostgresStore() {
     async setMomokaChatChannel(guildId, channelId) {
       await initialize();
       await pool.query(`INSERT INTO shinobi_momoka_settings (guild_id, chat_channel_id) VALUES ($1, $2) ON CONFLICT (guild_id) DO UPDATE SET chat_channel_id=EXCLUDED.chat_channel_id, updated_at=NOW()`, [guildId, channelId]);
+      return channelId;
+    },
+    async getMuralChannel(guildId) {
+      await initialize();
+      const result = await pool.query("SELECT mural_channel_id FROM shinobi_momoka_settings WHERE guild_id=$1", [guildId]);
+      return result.rows[0]?.mural_channel_id ?? null;
+    },
+    async setMuralChannel(guildId, channelId) {
+      await initialize();
+      await pool.query(`INSERT INTO shinobi_momoka_settings (guild_id, chat_channel_id, mural_channel_id) VALUES ($1, $2, $3) ON CONFLICT (guild_id) DO UPDATE SET mural_channel_id=EXCLUDED.mural_channel_id, updated_at=NOW()`, [guildId, "disabled", channelId]);
       return channelId;
     },
     async getRpCharacters(ownerId) {
