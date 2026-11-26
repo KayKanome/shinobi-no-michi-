@@ -295,7 +295,8 @@ async function publishAction(channel, actor, target, action, repository) {
     .setTimestamp();
   await channel.send({ content: `<@${actor.id}>  <@${target.id}>`, embeds: [embed], allowedMentions: { users: [actor.id, target.id] } });
   if (channel.guild?.id) await recordNewspaperMoment(repository, channel.guild.id, {
-    category: "Interação social", text: actorName + " e " + targetName + ": " + headline
+    category: "Interação social", text: actorName + " e " + targetName + ": " + headline,
+    channelId: channel.id
   });
 }
 
@@ -378,7 +379,7 @@ export async function handleRpMessage(message, client, repository) {
   }
   try {
     await publishAsRpCharacter(message.channel, client, character, message.author.id, text);
-    await recordNewspaperMoment(repository, message.guild.id, { category: "Cena de RP", text: "Uma nova cena de RP foi interpretada por " + character.name + "." });
+    await recordNewspaperMoment(repository, message.guild.id, { category: "Cena de RP", text: "Uma nova cena de RP foi interpretada por " + character.name + ".", channelId: message.channelId });
     await message.delete();
   } catch (error) {
     console.error("Falha ao publicar interpretação RP:", error.message);
