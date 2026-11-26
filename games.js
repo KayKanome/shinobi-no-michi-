@@ -344,7 +344,8 @@ export async function handleGamesInteraction(interaction, repository) {
     if (!session.players.has(interaction.user.id)) { await interaction.reply({ content: "Você não participa desta partida.", ephemeral: true }); return true; }
     if (session.answers.has(interaction.user.id)) { await interaction.reply({ content: "Sua resposta já foi registrada.", ephemeral: true }); return true; }
     const correct = choice === session.question.answer; session.answers.set(interaction.user.id, choice);
-    await interaction.reply({ content: correct ? "🎉 Você acertou! A Momoka está orgulhosa! +" + (10 + round * 2) + " pontos." : "🌸 Boa tentativa! " + session.question.explanation + " Você não perde pontos.", ephemeral: true });
+    // Confirma o clique sem criar uma nova mensagem privada a cada resposta.
+    await interaction.deferUpdate();
     if (session.mode === "solo") await soloResult(session, correct);
     else if (session.answers.size >= session.players.size) await multiplayerResult(session);
     return true;
