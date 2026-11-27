@@ -53,4 +53,4 @@ Estilos atuais: Ninjutsu, Genjutsu, Taijutsu, Médico, Marionetista, Especialist
 
 ## Estado
 
-Implementação inicial em desenvolvimento. Ainda requer testes no Discord, definição dos bônus de todos os clãs, bônus extras opcionais, regras de progressão/combate/recursos e configuração de um serviço de teste independente antes de ser considerada pronta para jogadores.
+Implementação inicial em desenvolvimento. Os bônus-base dos clãs estão definidos como valores provisórios; ainda requerem testes de balanceamento. Também faltam testes no Discord, bônus extras opcionais, regras de progressão/combate/recursos e configuração de um serviço de teste independente antes de ser considerada pronta para jogadores.
