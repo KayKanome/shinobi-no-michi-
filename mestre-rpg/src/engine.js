@@ -34,7 +34,6 @@ export function getSkillBonus(character, skillKey) {
   const skill = SKILLS[skillKey];
   if (!skill || !skill.style) return 0;
   if (normalize(character.primary_style) === normalize(skill.style)) return 3;
-  if (normalize(character.secondary_style) === normalize(skill.style)) return 1;
   return 0;
 }
 export function getClanBonus(character, skillKey) {
