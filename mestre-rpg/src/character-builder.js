@@ -42,7 +42,7 @@ export async function handleCharacterInteraction(i,pool){
   const name=i.fields.getTextInputValue("name").trim();
   const old=await pool.query("SELECT name FROM mestre_characters WHERE guild_id=$1 AND owner_id=$2",[i.guildId,i.user.id]);
   if(old.rowCount){await i.reply({content:"Você já possui a ficha **"+old.rows[0].name+"**. Use !mestre ficha.",flags:MessageFlags.Ephemeral});return true;}
-  const sid=i.id;sessions.set(sid,{id:sid,owner:i.user.id,guild:i.guildId,name,assigned:{},used:[],selectedRoll:null,selectedAttribute:null});
+  const sid=i.id;sessions.set(sid,{id:sid,owner:i.user.id,guild:i.guildId,name,assigned:{},assignmentIndex:{},used:[],selectedRoll:null,selectedAttribute:null});
   await i.reply({...render(sessions.get(sid)),flags:MessageFlags.Ephemeral});return true;
  }
  const s=sessions.get(id);
@@ -55,7 +55,15 @@ export async function handleCharacterInteraction(i,pool){
  if(action==="apply"){
   const index=s.selectedRoll,attr=s.selectedAttribute;
   if(index===null||!attr||s.used.includes(index)||s.assigned[attr]){await i.reply({content:"Selecione um resultado e um atributo disponível.",flags:MessageFlags.Ephemeral});return true;}
-  s.assigned[attr]=s.rolls[index].total;s.used.push(index);s.selectedRoll=null;s.selectedAttribute=null;await i.update(render(s));return true;
+  s.assigned[attr]=s.rolls[index].total;s.assignmentIndex[attr]=index;s.used.push(index);s.selectedRoll=null;s.selectedAttribute=null;await i.update(render(s));return true;
+ }
+ if(action==="undo"){
+  const index=s.used.pop();
+  if(index===undefined){await i.reply({content:"Ainda não há distribuição para desfazer.",flags:MessageFlags.Ephemeral});return true;}
+  const attr=Object.keys(s.assignmentIndex).find(key=>s.assignmentIndex[key]===index);
+  if(attr){delete s.assigned[attr];delete s.assignmentIndex[attr];}
+  s.selectedRoll=null;s.selectedAttribute=null;
+  await i.update(render(s));return true;
  }
  if(action==="cancel"){sessions.delete(id);await i.update({content:"Criação cancelada. Nada foi salvo.",components:[]});return true;}
  if(action==="save"){
