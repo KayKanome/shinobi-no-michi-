@@ -99,20 +99,20 @@ async function handleCommand(message, args) {
   if (sub === "personagem-antigo") {
     const fields = args.slice(1).join(" ").split(";").map(value => value.trim());
     const [name, clan = "Sem clã", primary = "Ninjutsu"] = fields;
-    if (!name || name.length < 2 || name.length > 24) return message.reply("Formato: !mestre personagem Nome;Clã;Estilo principal;Estilo secundário");
+    if (!name || name.length < 2 || name.length > 24) return message.reply("Formato: !mestre personagem Nome;Clã;Especialização");
     const chosenClan = CLANS.find(value => normalize(value) === normalize(clan));
     const chosenPrimary = STYLES.find(value => normalize(value) === normalize(primary));
     if (!chosenClan || !chosenPrimary) return message.reply("Clã ou especialização inválida. Clãs: " + CLANS.join(", ") + ". Especializações: " + STYLES.join(", ") + ".");
     const existing = await getCharacter(message.guildId, message.author.id);
     if (existing) return message.reply("Você já possui a ficha de " + existing.name + ". Use !mestre ficha.");
     const result = await pool.query("INSERT INTO mestre_characters (guild_id,owner_id,name,clan,primary_style) VALUES ($1,$2,$3,$4,$5) RETURNING *", [message.guildId, message.author.id, name, chosenClan, chosenPrimary]);
-    return message.reply("Ficha criada para **" + result.rows[0].name + "**.\nClã: **" + chosenClan + "**\nEstilo principal: **" + chosenPrimary + "** (+3 nas perícias do estilo)\nEstilo secundário: **" + chosenSecondary + "** (+1 nas perícias do estilo)\nTodos os atributos começam em 1. Use !mestre ficha.");
+    return message.reply("Ficha criada para **" + result.rows[0].name + "**.\nClã: **" + chosenClan + "**\nEspecialização: **" + chosenPrimary + "** (+3 nas perícias correspondentes).\nVocê pode usar outras áreas, mas sem bônus de especialização. Todos os atributos começam em 1. Use !mestre ficha.");
   }
   if (sub === "ficha") {
     const character = await getCharacter(message.guildId, message.author.id);
     if (!character) return message.reply("Você ainda não tem ficha. Use !renkage criar para abrir o painel privado.");
     const attributes = Object.entries(character.attributes).map(([key, value]) => "• " + (ATTRIBUTE_LABELS[key] || key) + ": **" + value + "**");
-    return message.reply("**FICHA — " + character.name + "**\nClã: **" + character.clan + "**\nEstilo principal: **" + character.primary_style + "**\nEstilo secundário: **" + character.secondary_style + "**\n" + attributes.join("\n") + "\n*Bônus de estilo: +3 principal / +1 secundário.*");
+    return message.reply("**FICHA — " + character.name + "**\nClã: **" + character.clan + "**\nEspecialização: **" + character.primary_style + "**\n" + attributes.join("\n") + "\n*Bônus de especialização: +3 na área escolhida; outras áreas não recebem esse bônus.*");
   }
   if (sub === "teste") {
     const rawSkill = normalize(args[1]).replace(/ /g, "");
