@@ -33,6 +33,69 @@ const SYSTEM_PROMPT = "Você é Renkage, o mestre carismático, inteligente, bri
   "O sistema usa 1d20 + atributo + bônus de estilo/clã contra dificuldade.\n" +
   "Responda somente em JSON válido: narration (string), needs_roll (boolean), skill (chave de perícia ou null), difficulty (inteiro 5 a 30 ou null), reason (string curta). Perícias: " + Object.keys(SKILLS).join(", ") + ". Não peça teste para ações triviais.";
 
+
+const slashCommands = [
+  { name: "ajuda", description: "Mostra os comandos do Renkage" },
+  { name: "criar", description: "Abre a criação privada da sua ficha" },
+  { name: "ficha", description: "Consulta sua ficha de personagem" },
+  { name: "campanha", description: "Inicia uma campanha neste canal", options: [{ type: 3, name: "nome", description: "Nome da campanha", required: true }] },
+  { name: "encerrar", description: "Encerra a campanha neste canal" },
+  { name: "teste", description: "Rola um teste de perícia", options: [{ type: 3, name: "pericia", description: "Nome da perícia", required: true }, { type: 4, name: "dificuldade", description: "Dificuldade entre 5 e 30", required: true, min_value: 5, max_value: 30 }] },
+  { name: "solo", description: "Cria uma sala privada de RP com um amigo", options: [{ type: 6, name: "amigo", description: "Jogador que participará", required: true }, { type: 3, name: "nome", description: "Nome da aventura", required: false }] }
+];
+
+async function handleSlashCommand(interaction) {
+  const name = interaction.commandName;
+  if (name === "ajuda") return interaction.reply({ content: helpText().replaceAll("!renkage ", "/").replaceAll("!mestre ", "/"), ephemeral: true });
+  if (name === "criar") return startCharacterCreation({ author: interaction.user, reply: (payload) => interaction.reply({ ...payload, ephemeral: true }) });
+  if (name === "ficha") {
+    const character = await getCharacter(interaction.guildId, interaction.user.id);
+    if (!character) return interaction.reply({ content: "Você ainda não tem ficha. Use /criar para abrir o painel.", ephemeral: true });
+    const attributes = Object.entries(character.attributes).map(([key, value]) => "• " + (ATTRIBUTE_LABELS[key] || key) + ": **" + value + "**");
+    return interaction.reply({ content: "**FICHA — " + character.name + "**\nClã: **" + character.clan + "**\nEspecialização: **" + character.primary_style + "**\n" + attributes.join("\n") + "\n*Bônus de especialização: +3 na área escolhida; outras áreas não recebem esse bônus.*", ephemeral: true });
+  }
+  if (name === "campanha") {
+    const title = interaction.options.getString("nome", true).trim();
+    if (title.length < 3) return interaction.reply({ content: "O nome precisa ter pelo menos 3 caracteres.", ephemeral: true });
+    const current = await getCampaign(interaction.channelId);
+    const canManage = interaction.memberPermissions?.has("ManageGuild") || interaction.memberPermissions?.has("Administrator");
+    if (current && current.owner_id && current.owner_id !== interaction.user.id && !canManage) return interaction.reply({ content: "Já existe uma campanha ativa neste canal. Apenas quem a iniciou ou a administração pode substituí-la.", ephemeral: true });
+    await pool.query("INSERT INTO mestre_campaigns (channel_id,guild_id,title,history,active,mode,owner_id,player_ids) VALUES ($1,$2,$3,'[]'::jsonb,TRUE,'server',$4,$5::jsonb) ON CONFLICT (channel_id) DO UPDATE SET guild_id=EXCLUDED.guild_id,title=EXCLUDED.title,history='[]'::jsonb,active=TRUE,mode='server',owner_id=EXCLUDED.owner_id,player_ids=EXCLUDED.player_ids,updated_at=NOW()", [interaction.channelId, interaction.guildId, title, interaction.user.id, JSON.stringify([])]);
+    return interaction.reply({ content: "📜 **Campanha iniciada: " + title + "**\nDescrevam suas ações neste canal. Eu conduzirei a aventura." });
+  }
+  if (name === "encerrar") {
+    const current = await getCampaign(interaction.channelId);
+    if (!current) return interaction.reply({ content: "Não há campanha ativa neste canal.", ephemeral: true });
+    const canManage = interaction.memberPermissions?.has("ManageGuild") || interaction.memberPermissions?.has("Administrator");
+    if (current.owner_id && current.owner_id !== interaction.user.id && !canManage) return interaction.reply({ content: "Apenas quem iniciou a campanha ou a administração pode encerrá-la.", ephemeral: true });
+    await pool.query("UPDATE mestre_campaigns SET active=FALSE,updated_at=NOW() WHERE channel_id=$1", [interaction.channelId]);
+    return interaction.reply({ content: "Campanha encerrada neste canal. O histórico permanece salvo." });
+  }
+  if (name === "teste") {
+    const rawSkill = normalize(interaction.options.getString("pericia", true)).replace(/ /g, "");
+    const skillKey = Object.keys(SKILLS).find(item => normalize(item) === rawSkill || normalize(SKILLS[item].label).replace(/ /g, "") === rawSkill);
+    const difficulty = interaction.options.getInteger("dificuldade", true);
+    if (!skillKey) return interaction.reply({ content: "Perícia inválida. Confira /ajuda.", ephemeral: true });
+    const character = await getCharacter(interaction.guildId, interaction.user.id);
+    if (!character) return interaction.reply({ content: "Crie sua ficha primeiro com /criar.", ephemeral: true });
+    const skill = SKILLS[skillKey];
+    const check = resolveCheck({ attributeValue: Number(character.attributes[skill.attribute] || 0), skillBonus: getSkillBonus(character, skillKey), clanBonus: getClanBonus(character, skillKey), difficulty });
+    return interaction.reply({ content: formatCheck(check, skill.label) });
+  }
+  if (name === "solo") {
+    const friend = interaction.options.getUser("amigo", true);
+    const title = (interaction.options.getString("nome") || "Aventura de Renkage").trim();
+    if (friend.bot || friend.id === interaction.user.id) return interaction.reply({ content: "Escolha outro jogador (não pode ser bot nem você mesmo).", ephemeral: true });
+    if (!interaction.channel?.threads) return interaction.reply({ content: "Este canal não permite salas privadas.", ephemeral: true });
+    await interaction.deferReply({ ephemeral: true });
+    const thread = await interaction.channel.threads.create({ name: title.slice(0, 90), type: ChannelType.PrivateThread, invitable: false, autoArchiveDuration: 1440, reason: "Campanha privada de Renkage" });
+    await thread.members.add(interaction.user.id);
+    await thread.members.add(friend.id);
+    await pool.query("INSERT INTO mestre_campaigns (channel_id,guild_id,title,history,active,mode,owner_id,player_ids) VALUES ($1,$2,$3,'[]'::jsonb,TRUE,'private',$4,$5::jsonb) ON CONFLICT (channel_id) DO UPDATE SET title=EXCLUDED.title,history='[]'::jsonb,active=TRUE,mode='private',owner_id=EXCLUDED.owner_id,player_ids=EXCLUDED.player_ids,updated_at=NOW()", [thread.id, interaction.guildId, title, interaction.user.id, JSON.stringify([interaction.user.id, friend.id])]);
+    return interaction.editReply("🔒 Sala privada criada: " + thread.toString() + ". Renkage conduzirá a aventura apenas para vocês.");
+  }
+}
+
 async function getCampaign(channelId) {
   const result = await pool.query("SELECT * FROM mestre_campaigns WHERE channel_id=$1 AND active=TRUE", [channelId]);
   return result.rows[0] ?? null;
@@ -186,7 +249,27 @@ const server = http.createServer((req, res) => {
   res.end("Not found");
 });
 server.listen(port, "0.0.0.0", () => console.log("Mestre RPG health server na porta " + port));
-client.once("ready", () => console.log("Mestre RPG conectado como " + client.user.tag));
+client.once("ready", async () => {
+  console.log("Mestre RPG conectado como " + client.user.tag);
+  for (const guild of client.guilds.cache.values()) {
+    try { await client.application.commands.set(slashCommands, guild.id); console.log("Comandos / sincronizados no servidor " + guild.id); }
+    catch (error) { console.error("Falha ao registrar comandos / no servidor " + guild.id, error); }
+  }
+});
+client.on("guildCreate", async guild => {
+  try { await client.application.commands.set(slashCommands, guild.id); console.log("Comandos / sincronizados no novo servidor " + guild.id); }
+  catch (error) { console.error("Falha ao registrar comandos / no novo servidor " + guild.id, error); }
+});
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  try { await handleSlashCommand(interaction); }
+  catch (error) {
+    console.error("Erro no comando /:", error);
+    const payload = { content: "Ocorreu um erro ao executar o comando. Confira os logs.", ephemeral: true };
+    if (interaction.deferred || interaction.replied) await interaction.followUp(payload).catch(() => {});
+    else await interaction.reply(payload).catch(() => {});
+  }
+});
 await client.login(token);
 async function shutdown() {
   await client.destroy();
