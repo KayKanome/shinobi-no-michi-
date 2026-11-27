@@ -79,10 +79,21 @@ async function handleCommand(message, args) {
   if (sub === "campanha") {
     const title = args.slice(1).join(" ").trim();
     if (title.length < 3) return message.reply("Dê um nome. Exemplo: !mestre campanha O Exame Chunin");
-    await pool.query("INSERT INTO mestre_campaigns (channel_id,guild_id,title,history,active) VALUES ($1,$2,$3,'[]'::jsonb,TRUE) ON CONFLICT (channel_id) DO UPDATE SET guild_id=EXCLUDED.guild_id,title=EXCLUDED.title,history='[]'::jsonb,active=TRUE,updated_at=NOW()", [message.channelId, message.guildId, title]);
-    return message.reply("📜 **Campanha iniciada: " + title + "**\nDescrevam suas ações neste canal. Eu conduzirei a aventura.");
+    const current = await getCampaign(message.channelId);
+    const canManage = message.memberPermissions?.has("ManageGuild") || message.memberPermissions?.has("Administrator");
+    if (current && current.owner_id && current.owner_id !== message.author.id && !canManage) {
+      return message.reply("Já existe uma campanha ativa neste canal. Apenas quem a iniciou ou a administração pode substituí-la.");
+    }
+    await pool.query("INSERT INTO mestre_campaigns (channel_id,guild_id,title,history,active,mode,owner_id,player_ids) VALUES ($1,$2,$3,'[]'::jsonb,TRUE,'server',$4,$5::jsonb) ON CONFLICT (channel_id) DO UPDATE SET guild_id=EXCLUDED.guild_id,title=EXCLUDED.title,history='[]'::jsonb,active=TRUE,mode='server',owner_id=EXCLUDED.owner_id,player_ids=EXCLUDED.player_ids,updated_at=NOW()", [message.channelId, message.guildId, title, message.author.id, JSON.stringify([])]);
+    return message.reply("📜 **Campanha iniciada: " + title + "**\\nDescrevam suas ações neste canal. Eu conduzirei a aventura.");
   }
   if (sub === "encerrar") {
+    const current = await getCampaign(message.channelId);
+    if (!current) return message.reply("Não há campanha ativa neste canal.");
+    const canManage = message.memberPermissions?.has("ManageGuild") || message.memberPermissions?.has("Administrator");
+    if (current.owner_id && current.owner_id !== message.author.id && !canManage) {
+      return message.reply("Apenas quem iniciou a campanha ou a administração pode encerrá-la.");
+    }
     await pool.query("UPDATE mestre_campaigns SET active=FALSE,updated_at=NOW() WHERE channel_id=$1", [message.channelId]);
     return message.reply("Campanha encerrada neste canal. O histórico permanece salvo.");
   }
