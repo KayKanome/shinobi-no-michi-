@@ -27,11 +27,21 @@ test("only the single main specialization grants +3; other areas remain usable w
   assert.equal(getSkillBonus(character, "taijutsu"), 0);
 });
 
-test("Uchiha clan bonuses are applied only to matching skills", () => {
-  const character = { clan: "Uchiha" };
-  assert.equal(getClanBonus(character, "genjutsu"), 1);
-  assert.equal(getClanBonus(character, "resistenciaMental"), 2);
-  assert.equal(getClanBonus(character, "ninjutsu"), 0);
+test("each clan receives only its defined +2/+1 bonuses", () => {
+  const cases = [
+    ["Uchiha", "genjutsu", 1, "resistenciaMental", 2],
+    ["Hyūga", "percepcao", 2, "controleChakra", 1],
+    ["Inuzuka", "sobrevivencia", 2, "percepcao", 1],
+    ["Nara", "investigacao", 2, "furtividade", 1],
+    ["Akimichi", "taijutsu", 2, "resistenciaMental", 1],
+    ["Aburame", "furtividade", 2, "investigacao", 1]
+  ];
+  for (const [clan, skillA, bonusA, skillB, bonusB] of cases) {
+    assert.equal(getClanBonus({ clan }, skillA), bonusA, clan + " " + skillA);
+    assert.equal(getClanBonus({ clan }, skillB), bonusB, clan + " " + skillB);
+    assert.equal(getClanBonus({ clan }, "ninjutsu"), 0, clan + " unrelated skill");
+  }
+  assert.equal(getClanBonus({ clan: "Sem clã" }, "percepcao"), 0);
 });
 
 test("all skill definitions point to a known attribute", () => {
