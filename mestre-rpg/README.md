@@ -15,7 +15,7 @@ Bot Discord independente da Momoka, dedicado a missões, treinamentos, personage
 
 - `!renkage criar` abre uma mensagem de entrada; o botão abre um painel privado.
 - O jogador informa o nome do personagem.
-- Clã, especialização principal e secundária são sorteados aleatoriamente.
+- Clã e uma única especialização são sorteados aleatoriamente. O personagem pode usar outras áreas, mas recebe bônus apenas na especialização escolhida.
 - Os seis atributos são rolados de uma vez: **4d6, descartando o menor dado**.
 - O jogador distribui os seis resultados pelos seis atributos usando menus e botões.
 - O painel mostra os bônus de estilo e clã calculados antes da confirmação.
