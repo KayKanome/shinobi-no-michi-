@@ -20,10 +20,10 @@ test("resolveCheck adds die, attribute and bonuses", () => {
   assert.equal(result.success, true);
 });
 
-test("style bonus is +3 primary and +1 secondary", () => {
-  const character = { primary_style: "Ninjutsu", secondary_style: "Genjutsu" };
+test("only the single main specialization grants +3; other areas remain usable without specialization bonus", () => {
+  const character = { primary_style: "Ninjutsu" };
   assert.equal(getSkillBonus(character, "ninjutsu"), 3);
-  assert.equal(getSkillBonus(character, "genjutsu"), 1);
+  assert.equal(getSkillBonus(character, "genjutsu"), 0);
   assert.equal(getSkillBonus(character, "taijutsu"), 0);
 });
 
