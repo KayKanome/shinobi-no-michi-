@@ -20,7 +20,6 @@ await pool.query("CREATE TABLE IF NOT EXISTS mestre_characters (id BIGSERIAL PRI
 
 await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS clan TEXT NOT NULL DEFAULT 'Sem clã'");
 await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS primary_style TEXT NOT NULL DEFAULT 'Ninjutsu'");
-await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS secondary_style TEXT NOT NULL DEFAULT 'Taijutsu'");
 await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS rolls JSONB NOT NULL DEFAULT '[]'::jsonb");
 await pool.query("ALTER TABLE mestre_characters ADD COLUMN IF NOT EXISTS skills JSONB NOT NULL DEFAULT '{}'::jsonb");
 await pool.query("ALTER TABLE mestre_campaigns ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'server'");
@@ -99,15 +98,14 @@ async function handleCommand(message, args) {
   }
   if (sub === "personagem-antigo") {
     const fields = args.slice(1).join(" ").split(";").map(value => value.trim());
-    const [name, clan = "Sem clã", primary = "Ninjutsu", secondary = "Taijutsu"] = fields;
+    const [name, clan = "Sem clã", primary = "Ninjutsu"] = fields;
     if (!name || name.length < 2 || name.length > 24) return message.reply("Formato: !mestre personagem Nome;Clã;Estilo principal;Estilo secundário");
     const chosenClan = CLANS.find(value => normalize(value) === normalize(clan));
     const chosenPrimary = STYLES.find(value => normalize(value) === normalize(primary));
-    const chosenSecondary = STYLES.find(value => normalize(value) === normalize(secondary));
-    if (!chosenClan || !chosenPrimary || !chosenSecondary || normalize(chosenPrimary) === normalize(chosenSecondary)) return message.reply("Clã ou estilo inválido. Clãs: " + CLANS.join(", ") + ". Estilos: " + STYLES.join(", ") + ". Escolha dois estilos diferentes.");
+    if (!chosenClan || !chosenPrimary) return message.reply("Clã ou especialização inválida. Clãs: " + CLANS.join(", ") + ". Especializações: " + STYLES.join(", ") + ".");
     const existing = await getCharacter(message.guildId, message.author.id);
     if (existing) return message.reply("Você já possui a ficha de " + existing.name + ". Use !mestre ficha.");
-    const result = await pool.query("INSERT INTO mestre_characters (guild_id,owner_id,name,clan,primary_style,secondary_style) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *", [message.guildId, message.author.id, name, chosenClan, chosenPrimary, chosenSecondary]);
+    const result = await pool.query("INSERT INTO mestre_characters (guild_id,owner_id,name,clan,primary_style) VALUES ($1,$2,$3,$4,$5) RETURNING *", [message.guildId, message.author.id, name, chosenClan, chosenPrimary]);
     return message.reply("Ficha criada para **" + result.rows[0].name + "**.\nClã: **" + chosenClan + "**\nEstilo principal: **" + chosenPrimary + "** (+3 nas perícias do estilo)\nEstilo secundário: **" + chosenSecondary + "** (+1 nas perícias do estilo)\nTodos os atributos começam em 1. Use !mestre ficha.");
   }
   if (sub === "ficha") {
@@ -155,7 +153,7 @@ client.on("messageCreate", async message => {
     if (campaign.mode === "private" && !(campaign.player_ids || []).includes(message.author.id)) return;
     const character = await getCharacter(message.guildId, message.author.id);
     const playerContext = character
-      ? message.author.username + ": personagem " + character.name + "; clã " + character.clan + "; estilo principal " + character.primary_style + "; estilo secundário " + character.secondary_style + "; atributos " + JSON.stringify(character.attributes)
+      ? message.author.username + ": personagem " + character.name + "; clã " + character.clan + "; especialização " + character.primary_style + "; atributos " + JSON.stringify(character.attributes)
       : message.author.username + ": ainda não criou ficha";
     const history = Array.isArray(campaign.history) ? campaign.history.slice(-18) : [];
     history.push({ role: "user", content: message.author.username + " diz/faz: " + content });
