@@ -1,0 +1,36 @@
+name: Renkage checks
+
+on:
+  push:
+    branches:
+      - mestre-rpg
+    paths:
+      - "mestre-rpg/**"
+      - "package.json"
+      - ".github/workflows/renkage-ci.yml"
+  pull_request:
+    branches:
+      - mestre-rpg
+    paths:
+      - "mestre-rpg/**"
+      - "package.json"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Check JavaScript syntax
+        run: |
+          node --check mestre-rpg/src/index.js
+          node --check mestre-rpg/src/engine.js
+          node --check mestre-rpg/src/character-builder.js
+      - name: Test RPG engine
+        run: node --test mestre-rpg/src/engine.test.js
