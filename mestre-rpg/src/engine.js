@@ -36,12 +36,19 @@ export function getSkillBonus(character, skillKey) {
   if (normalize(character.primary_style) === normalize(skill.style)) return 3;
   return 0;
 }
+export const CLAN_BONUSES = {
+  "sem cla": {},
+  uchiha: { genjutsu: 1, resistenciaMental: 2 },
+  hyuga: { percepcao: 2, controleChakra: 1 },
+  inuzuka: { sobrevivencia: 2, percepcao: 1 },
+  nara: { investigacao: 2, furtividade: 1 },
+  akimichi: { taijutsu: 2, resistenciaMental: 1 },
+  aburame: { furtividade: 2, investigacao: 1 }
+};
+
 export function getClanBonus(character, skillKey) {
-  if (normalize(character.clan) === "uchiha") {
-    if (skillKey === "genjutsu") return 1;
-    if (skillKey === "resistenciaMental") return 2;
-  }
-  return 0;
+  const clan = normalize(character.clan);
+  return CLAN_BONUSES[clan]?.[skillKey] ?? 0;
 }
 export function formatCheck(result, skillName = "Teste") {
   const outcome = result.success ? "SUCESSO" : "FALHA";
