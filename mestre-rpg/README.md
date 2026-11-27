@@ -24,9 +24,9 @@ Bot Discord independente da Momoka, dedicado a missões, treinamentos, personage
 ## Sistema inicial
 
 - Testes: **1d20 + atributo + bônus de estilo/clã** contra uma dificuldade.
-- Estilo principal: +3 nas perícias associadas.
-- Estilo secundário: +1 nas perícias associadas.
-- No protótipo atual, Uchiha tem +1 em Genjutsu e +2 em Resistência Mental; os bônus dos demais clãs ainda precisam ser projetados e balanceados.
+- Especialização única: +3 nas perícias associadas. Outras áreas continuam utilizáveis, sem esse bônus.
+- Bônus de clã iniciais (podem ser rebalanceados após testes): Uchiha +1 Genjutsu / +2 Resistência Mental; Hyūga +2 Percepção / +1 Controle de Chakra; Inuzuka +2 Sobrevivência / +1 Percepção; Nara +2 Investigação / +1 Furtividade; Akimichi +2 Taijutsu / +1 Resistência Mental; Aburame +2 Furtividade / +1 Investigação.
+- Sem clã não recebe bônus de clã. Os bônus de clã somam-se ao bônus da especialização quando ambos se aplicam.
 - Este é um sistema original em desenvolvimento, não uma implementação oficial de Tormenta20.
 
 ## Comandos
